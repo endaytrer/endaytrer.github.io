@@ -1,0 +1,159 @@
+@charset "UTF-8";
+
+body {
+    background-color: rgb(221, 221, 221);
+    overflow-x: hidden;
+    font-family: 'Avenir Next', 'Gotham', 'Helvetica', sans-serif;
+}
+
+.titleBlank {
+    display: flow-root;
+    background-image: url("Images/Abstract 1.jpg");
+    background-size: 2000px;
+    color: #eee;
+    margin: -20px;
+
+}
+
+.naviBar {
+    position: sticky;
+    position: -webkit-sticky;
+    overflow: hidden;
+    top: 0;
+    margin: -53px -20px;
+    background-color: rgba(50, 50, 50, 0.9);
+    box-shadow: 0px 0px 20px #222222;
+}
+
+.naviBarItem {
+    float: left;
+    padding: 15px 40px;
+    font-size: 17px;
+    color: #fff;
+    transition: ease-in-out;
+    transition-duration: 300ms;
+}
+
+.naviBarItem:hover {
+    background-color: rgba(200, 200, 200, 1);
+    color: #fff;
+    font-weight: 500;
+    transition: ease-in-out;
+    transition-duration: 300ms;
+}
+
+.mainTitle {
+    padding-left: 40px;
+    padding-top: 100px;
+}
+
+
+.mainTitle b {
+    font-weight: 600;
+}
+
+.productTitle {
+    color: #fff;
+    font-weight: 600;
+    text-align: center;
+    padding-top: 80px;
+}
+
+.cardContainer {
+    width: fit-content;
+    padding: 10px 85px 100px;
+    margin: auto;
+}
+
+.cardContainerContainer {
+    height: fit-content;
+    margin: 53px -20px;
+    background-color: rgb(38, 50, 56);
+}
+
+.card {
+    overflow-y: hidden;
+    margin: 40px 20px;
+    border-radius: 20px;
+    float: left;
+    width: 300px;
+    height: 400px;
+    color: #fff;
+    box-shadow: 0px 10px 20px #222;
+    padding: 50px 40px;
+    background-repeat: no-repeat;
+    background-attachment: local;
+    transition-duration: 300ms;
+}
+
+.card:hover {
+    overflow-y: scroll;
+    margin-top: 30px;
+    width: 800px;
+    box-shadow: 0px 30px 50px #111;
+    transition: ease-in-out;
+    transition-duration: 300ms;
+}
+
+.card::-webkit-scrollbar {
+    display: none;
+}
+
+.modelt {
+    background-image: url('Images/Reflection 4.jpg');
+    background-size: 900px;
+    background-color: rgb(153, 155, 167);
+}
+
+.bicDNA {
+    background-image: url('Images/Reflection 3.jpg');
+    background-size: 900px;
+    background-color: rgb(76, 77, 83);
+}
+
+.clear {
+    clear: both;
+}
+
+.bicDNA .abstract {
+    color: #000;
+}
+
+.bicDNA a {
+    color: rgb(80, 50, 50)
+}
+
+.abstract {
+    display: block;
+}
+
+.installation {
+    margin-top: 300px;
+}
+
+h1 {
+    font-weight: 200;
+    font-size: 65px;
+}
+
+h2 {
+    font-size: 50px;
+    font-weight: 300;
+}
+
+h3 {
+    font-size: 35px;
+    font-weight: 300;
+}
+
+h4 {
+    font-size: 25px;
+    font-weight: 400;
+    margin-top: 10px;
+    margin-bottom: 60px;
+}
+
+a {
+    text-decoration: none;
+    color: aquamarine;
+}
