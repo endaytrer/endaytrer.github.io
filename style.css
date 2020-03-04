@@ -137,7 +137,7 @@ body {
     float: left;
     padding: 10px 30px;
     font-size: 17px;
-    color: #fff;
+    color: rgba(160, 160, 160, 1);
     transition: ease-in-out;
     transition-duration: 200ms;
 }
@@ -147,16 +147,14 @@ body {
         float: left;
         padding: 15px 40px;
         font-size: 17px;
-        color: #fff;
+        color: rgba(160, 160, 160, 1);
         transition: ease-in-out;
         transition-duration: 200ms;
     }
 }
 
 .naviBarItem:hover {
-    background-color: rgba(160, 160, 160, 1);
     color: #fff;
-    font-weight: 500;
     transition: ease-in-out;
     transition-duration: 200ms;
 }
