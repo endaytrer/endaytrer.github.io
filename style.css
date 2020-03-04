@@ -7,7 +7,7 @@
 
 #thisChecked1:checked+.modelt {
     overflow-y: scroll;
-    margin-top: 30px;
+    margin: 20px 1% 60px;
     box-shadow: 0px 30px 50px #111;
     transition: ease-in-out;
     transition-duration: 200ms;
@@ -16,7 +16,7 @@
 
 #thisChecked2:checked+.bicDNA {
     overflow-y: scroll;
-    margin-top: 30px;
+    margin: 20px 1% 40px;
     box-shadow: 0px 30px 50px #111;
     transition: ease-in-out;
     transition-duration: 200ms;
@@ -27,9 +27,6 @@
 }
 
 @media only screen and (min-width:1080px) {
-    .productTitle {
-        padding: 80px 20% 0px;
-    }
 
     .col-1 {
         width: 8.33%;
@@ -93,8 +90,8 @@
 
     #thisChecked1:checked+.modelt {
         overflow-y: scroll;
-        margin-top: 30px;
-        width: 45%;
+        margin: 30px 2% 20px;
+        width: 55%;
         box-shadow: 0px 30px 50px #111;
         transition: ease-in-out;
         transition-duration: 200ms;
@@ -103,8 +100,8 @@
 
     #thisChecked2:checked+.bicDNA {
         overflow-y: scroll;
-        margin-top: 30px;
-        width: 45%;
+        margin: 30px 2% 20px;
+        width: 55%;
         box-shadow: 0px 30px 50px #111;
         transition: ease-in-out;
         transition-duration: 200ms;
@@ -138,19 +135,30 @@ body {
 
 .naviBarItem {
     float: left;
-    padding: 15px 40px;
+    padding: 10px 30px;
     font-size: 17px;
     color: #fff;
     transition: ease-in-out;
-    transition-duration: 300ms;
+    transition-duration: 200ms;
+}
+
+@media only screen and (min-width:640px) {
+    .naviBarItem {
+        float: left;
+        padding: 15px 40px;
+        font-size: 17px;
+        color: #fff;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
 }
 
 .naviBarItem:hover {
-    background-color: rgba(200, 200, 200, 1);
+    background-color: rgba(160, 160, 160, 1);
     color: #fff;
     font-weight: 500;
     transition: ease-in-out;
-    transition-duration: 300ms;
+    transition-duration: 200ms;
 }
 
 .mainTitle {
@@ -182,7 +190,7 @@ body {
 
 .card {
     overflow-y: hidden;
-    margin: 40px 2%;
+    margin: 40px 2% 20px;
     border-radius: 20px;
     height: 400px;
     color: #fff;
@@ -192,9 +200,6 @@ body {
     background-attachment: local;
     transition-duration: 200ms;
 }
-
-
-
 
 .card::-webkit-scrollbar {
     display: none;
@@ -234,24 +239,62 @@ body {
 
 h1 {
     font-weight: 200;
-    font-size: 65px;
+    font-size: 50px;
+    transition: ease-in-out;
+    transition-duration: 200ms;
 }
 
 h2 {
     font-size: 50px;
     font-weight: 300;
+    transition: ease-in-out;
+    transition-duration: 200ms;
 }
 
 h3 {
     font-size: 35px;
     font-weight: 300;
+    transition: ease-in-out;
+    transition-duration: 200ms;
 }
 
 h4 {
-    font-size: 25px;
+    font-size: 22px;
     font-weight: 400;
     margin-top: 10px;
     margin-bottom: 60px;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+}
+
+@media only screen and (min-width:640px) {
+    h1 {
+        font-weight: 200;
+        font-size: 65px;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+
+    h2 {
+        font-size: 50px;
+        font-weight: 300;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+
+    h3 {
+        font-size: 35px;
+        font-weight: 300;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+
+    h4 {
+        font-size: 25px;
+        font-weight: 400;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
 }
 
 a {
