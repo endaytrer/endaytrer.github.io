@@ -208,7 +208,7 @@ body {
 .modelt {
     background-image: url('Images/Reflection 4.jpg');
     background-size: 900px;
-    background-color: rgb(153, 155, 167);
+    background-color: rgb(76, 77, 83);
 }
 
 .bicDNA {
@@ -216,6 +216,7 @@ body {
     background-size: 900px;
     background-color: rgb(76, 77, 83);
 }
+
 
 .clear {
     clear: both;
