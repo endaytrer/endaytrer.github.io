@@ -22,41 +22,61 @@
     <div class="cardContainerContainer">
       <h1 class="productTitle">Products</h1>
       <div class="cardContainer">
-        <label for="thisChecked1">
-          <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;">
-          <div class="card modelt">
-            <div class="abstract">
-              <h2 class="t21">MODEL<b>T</b></h2>
-              <div class="text">
-                <h4>A Python package for<br /> Mathematic Modeling.<br /> <a
-                    href="https://github.com/endaytrer/modelt">View
-                    in
-                    GitHub.</a>
-                </h4>
+        <form>
+          <label for="thisChecked1">
+            <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;" />
+            <div class="card modelt" onclick="javascript:check1(e);">
+              <div class="abstract">
+                <h2 class="t21">MODEL<b>T</b></h2>
+                <div class="text">
+                  <h4>A Python package for<br /> Mathematic Modeling.<br /> <a
+                      href="https://github.com/endaytrer/modelt">View
+                      in
+                      GitHub.</a>
+                  </h4>
+                </div>
+              </div>
+              <div class="installation">
+                <h3><b>Installation</b></h3>
               </div>
             </div>
-            <div class="installation">
-              <h3><b>Installation</b></h3>
-            </div>
-          </div>
-        </label>
-        <label for="thisChecked2">
-          <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;">
-          <div class="card bicDNA">
-            <div class="abstract">
-              <h2 class="t21">BIC<b>DNA</b></h2>
-              <div class="text">
-                <h4>A C# Based<br /> DNA Analytical App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
-                    in
-                    GitHub.</a>
-                </h4>
+            <script>
+              function check1() {
+                thisCheck = document.getElementById('thisChecked1');
+                if (thisCheck.checked == false) {
+                  otherCheck = document.getElementById('thisChecked2');
+                  otherCheck.checked = false;
+                }
+              }
+            </script>
+          </label>
+          <label for="thisChecked2">
+            <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;" />
+            <div class="card bicDNA" onclick="javascript:check2();">
+              <div class="abstract">
+                <h2 class="t21">BIC<b>DNA</b></h2>
+                <div class="text">
+                  <h4>A C# Based<br /> DNA Analytical App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
+                      in
+                      GitHub.</a>
+                  </h4>
+                </div>
+              </div>
+              <div class="installation">
+                <h3><b>Installation</b></h3>
               </div>
             </div>
-            <div class="installation">
-              <h3><b>Installation</b></h3>
-            </div>
-          </div>
-        </label>
+            <script>
+              function check2() {
+                thisCheck = document.getElementById('thisChecked2');
+                if (thisCheck.checked == false) {
+                  otherCheck = document.getElementById('thisChecked1');
+                  otherCheck.checked = false;
+                }
+              }
+            </script>
+          </label>
+        </form>
         <div class="clear"></div>
       </div>
     </div>
