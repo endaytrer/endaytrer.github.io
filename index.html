@@ -3,6 +3,7 @@
 
 <head>
   <title>Endaytrer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 
@@ -22,61 +23,60 @@
     <div class="cardContainerContainer">
       <h1 class="productTitle">Products</h1>
       <div class="cardContainer">
-        <form>
-          <label for="thisChecked1">
-            <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;" />
-            <div class="card modelt" onclick="javascript:check1();">
-              <div class="abstract">
-                <h2 class="t21">MODEL<b>T</b></h2>
-                <div class="text">
-                  <h4>A Python package for<br /> Mathematic Modeling.<br /> <a
-                      href="https://github.com/endaytrer/modelt">View
-                      in
-                      GitHub.</a>
-                  </h4>
-                </div>
-              </div>
-              <div class="installation">
-                <h3><b>Installation</b></h3>
+        <div class="col-1"><br /></div>
+        <label for="thisChecked1">
+          <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;" />
+          <div class="card modelt col-4" onclick="javascript:check1();">
+            <div class="abstract">
+              <h2 class="t21">MODEL<b>T</b></h2>
+              <div class="text">
+                <h4>A Python package<br />for Math<br />Modeling.<br /> <a
+                    href="https://github.com/endaytrer/modelt">View
+                    in
+                    GitHub.</a>
+                </h4>
               </div>
             </div>
-            <script>
-              function check1() {
-                thisCheck = document.getElementById('thisChecked1');
-                if (thisCheck.checked == false) {
-                  otherCheck = document.getElementById('thisChecked2');
-                  otherCheck.checked = false;
-                }
+            <div class="installation">
+              <h3><b>Installation</b></h3>
+            </div>
+          </div>
+          <script>
+            function check1() {
+              thisCheck = document.getElementById('thisChecked1');
+              if (thisCheck.checked == false) {
+                otherCheck = document.getElementById('thisChecked2');
+                otherCheck.checked = false;
               }
-            </script>
-          </label>
-          <label for="thisChecked2">
-            <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;" />
-            <div class="card bicDNA" onclick="javascript:check2();">
-              <div class="abstract">
-                <h2 class="t21">BIC<b>DNA</b></h2>
-                <div class="text">
-                  <h4>A C# Based<br /> DNA Analytical App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
-                      in
-                      GitHub.</a>
-                  </h4>
-                </div>
-              </div>
-              <div class="installation">
-                <h3><b>Installation</b></h3>
+            }
+          </script>
+        </label>
+        <label for="thisChecked2">
+          <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;" />
+          <div class="card bicDNA col-4" onclick="javascript:check2();">
+            <div class="abstract">
+              <h2 class="t21">BIC<b>DNA</b></h2>
+              <div class="text">
+                <h4>A C# Based<br /> DNA Analytical<br /> App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
+                    in
+                    GitHub.</a>
+                </h4>
               </div>
             </div>
-            <script>
-              function check2() {
-                thisCheck = document.getElementById('thisChecked2');
-                if (thisCheck.checked == false) {
-                  otherCheck = document.getElementById('thisChecked1');
-                  otherCheck.checked = false;
-                }
+            <div class="installation">
+              <h3><b>Installation</b></h3>
+            </div>
+          </div>
+          <script>
+            function check2() {
+              thisCheck = document.getElementById('thisChecked2');
+              if (thisCheck.checked == false) {
+                otherCheck = document.getElementById('thisChecked1');
+                otherCheck.checked = false;
               }
-            </script>
-          </label>
-        </form>
+            }
+          </script>
+        </label>
         <div class="clear"></div>
       </div>
     </div>

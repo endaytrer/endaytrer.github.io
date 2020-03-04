@@ -1,5 +1,116 @@
 @charset "UTF-8";
 
+/* Responsive */
+* {
+    box-sizing: border-box;
+}
+
+#thisChecked1:checked+.modelt {
+    overflow-y: scroll;
+    margin-top: 30px;
+    box-shadow: 0px 30px 50px #111;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+}
+
+
+#thisChecked2:checked+.bicDNA {
+    overflow-y: scroll;
+    margin-top: 30px;
+    box-shadow: 0px 30px 50px #111;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+}
+
+.productTitle {
+    padding: 80px 10% 0px;
+}
+
+@media only screen and (min-width:1080px) {
+    .productTitle {
+        padding: 80px 20% 0px;
+    }
+
+    .col-1 {
+        width: 8.33%;
+        float: left;
+    }
+
+    .col-2 {
+        width: 16.66%;
+        float: left;
+    }
+
+    .col-3 {
+        width: 25%;
+        float: left;
+    }
+
+    .col-4 {
+        width: 33.33%;
+        float: left;
+    }
+
+    .col-5 {
+        width: 41.66%;
+        float: left;
+    }
+
+    .col-6 {
+        width: 50%;
+        float: left;
+    }
+
+    .col-7 {
+        width: 58.33%;
+        float: left;
+    }
+
+    .col-8 {
+        width: 66.66%;
+        float: left;
+    }
+
+    .col-9 {
+        width: 75%;
+        float: left;
+    }
+
+    .col-10 {
+        width: 83.33%;
+        float: left;
+    }
+
+    .col-11 {
+        width: 91.66%;
+        float: left;
+    }
+
+    .col-12 {
+        width: 100%;
+        float: left;
+    }
+
+    #thisChecked1:checked+.modelt {
+        overflow-y: scroll;
+        margin-top: 30px;
+        width: 45%;
+        box-shadow: 0px 30px 50px #111;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+
+
+    #thisChecked2:checked+.bicDNA {
+        overflow-y: scroll;
+        margin-top: 30px;
+        width: 45%;
+        box-shadow: 0px 30px 50px #111;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+}
+
 body {
     background-color: rgb(221, 221, 221);
     overflow-x: hidden;
@@ -55,14 +166,11 @@ body {
 .productTitle {
     color: #fff;
     font-weight: 600;
-    text-align: center;
-    padding-top: 80px;
 }
 
 .cardContainer {
-    width: fit-content;
-    padding: 10px 85px 100px;
-    margin: auto;
+    float: none;
+    padding: 10px 10% 100px;
 }
 
 .cardContainerContainer {
@@ -71,12 +179,11 @@ body {
     background-color: rgb(38, 50, 56);
 }
 
+
 .card {
     overflow-y: hidden;
-    margin: 40px 20px;
+    margin: 40px 2%;
     border-radius: 20px;
-    float: left;
-    width: 300px;
     height: 400px;
     color: #fff;
     box-shadow: 0px 10px 20px #222;
@@ -87,24 +194,7 @@ body {
 }
 
 
-#thisChecked1:checked+.modelt {
-    overflow-y: scroll;
-    margin-top: 30px;
-    width: 800px;
-    box-shadow: 0px 30px 50px #111;
-    transition: ease-in-out;
-    transition-duration: 200ms;
-}
 
-
-#thisChecked2:checked+.bicDNA {
-    overflow-y: scroll;
-    margin-top: 30px;
-    width: 800px;
-    box-shadow: 0px 30px 50px #111;
-    transition: ease-in-out;
-    transition-duration: 200ms;
-}
 
 .card::-webkit-scrollbar {
     display: none;
