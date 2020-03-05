@@ -322,7 +322,6 @@ body {
 
 /* Startify */
 .welcome {
-  width: calc(100vw);
   margin-top: 97px;
   margin-left: -20px;
   margin-right: -20px;
