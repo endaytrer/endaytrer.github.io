@@ -3,6 +3,7 @@
 /* Responsive */
 * {
     box-sizing: border-box;
+    transform: 0.2s ease-in;
 }
 
 #thisChecked1:checked+.modelt {
@@ -115,26 +116,31 @@ body {
 }
 
 .titleBlank {
-    display: flow-root;
     background-image: url("Images/Abstract 1.jpg");
     background-size: 2000px;
     color: #eee;
-    margin: -20px;
+    margin: -80px -20px;
 
 }
 
-.naviBar {
+.navBar {
+    display: none;
     position: sticky;
     position: -webkit-sticky;
     overflow: hidden;
     top: 0;
-    margin: -53px -20px;
+    margin: 80px -20px -106px;
     background-color: rgba(50, 50, 50, 0.9);
     box-shadow: 0px 0px 20px #222222;
 }
 
-.naviBarItem {
-    float: left;
+.navItem {
+    display: none;
+    list-style-type: none;
+}
+
+.navBarLink {
+    display: none;
     padding: 10px 30px;
     font-size: 17px;
     color: rgba(160, 160, 160, 1);
@@ -142,8 +148,88 @@ body {
     transition-duration: 200ms;
 }
 
+.mNavBar {
+    position: fixed;
+    overflow: hidden;
+    top: 10px;
+    margin: 0px 5%;
+    width: 90%;
+    border-radius: 33px;
+    background-color: rgba(80, 80, 80, 0.9);
+}
+
+.barBefore {
+    height: 65px;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+    box-shadow: 0px 0px 20px #222222;
+}
+
+.barAfter {
+    height: 360px;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+    box-shadow: 0px 10px 50px #000000;
+}
+
+.mTitle {
+    float: left;
+    padding: 16px 0px;
+    font-size: 25px;
+    font-weight: 500;
+    color: #eeeeee;
+    transition: ease-in-out;
+    transition-duration: 200ms;
+}
+
+.mNavItem {
+    list-style-type: none;
+    background-color: rgb(70, 70, 70);
+    box-shadow: 0px 0px 20px #333333;
+    border-radius: 30px;
+}
+
+.dropdownList {
+    margin-top: 20px;
+    margin-left: -60px;
+    margin-right: 20px;
+}
+
+.mNavBarLink {
+    color: rgba(255, 255, 255, 1);
+    padding: 15px 0px 15px;
+    margin: 10px;
+    font-size: 20px;
+    display: block;
+    text-align: center;
+}
+
+.dropBtn {
+    float: right;
+    padding: 0px 14px;
+    margin-top: 5px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    border-radius: 30px;
+    background-color: #444444;
+    font-size: 40px;
+    color: rgba(255, 255, 255, 1);
+    transition: ease-in-out;
+    transition-duration: 200ms;
+}
+
+
 @media only screen and (min-width:640px) {
-    .naviBarItem {
+    .mNavBar {
+        display: none;
+    }
+
+    .navBar {
+        display: block;
+    }
+
+    .navBarLink {
+        display: block;
         float: left;
         padding: 15px 40px;
         font-size: 17px;
@@ -151,9 +237,13 @@ body {
         transition: ease-in-out;
         transition-duration: 200ms;
     }
+
+    .navItem {
+        display: inline;
+    }
 }
 
-.naviBarItem:hover {
+.navBarLink:hover {
     color: #fff;
     transition: ease-in-out;
     transition-duration: 200ms;
@@ -162,8 +252,18 @@ body {
 .mainTitle {
     padding-left: 40px;
     padding-top: 100px;
+    display: none;
+    transition: ease-in-out;
+    transition-duration: 200ms;
 }
 
+@media only screen and (min-width:640px) {
+    .mainTitle {
+        display: block;
+        transition: ease-in-out;
+        transition-duration: 200ms;
+    }
+}
 
 .mainTitle b {
     font-weight: 600;
@@ -172,16 +272,18 @@ body {
 .productTitle {
     color: #fff;
     font-weight: 600;
+    margin-bottom: 0px;
 }
 
 .cardContainer {
     float: none;
-    padding: 10px 10% 100px;
+    padding: 0px 10% 150px;
 }
 
 .cardContainerContainer {
     height: fit-content;
     margin: 53px -20px;
+    padding-top: 60px;
     background-color: rgb(38, 50, 56);
 }
 
@@ -258,7 +360,7 @@ h3 {
 }
 
 h4 {
-    font-size: 22px;
+    font-size: 23px;
     font-weight: 400;
     margin-top: 10px;
     margin-bottom: 60px;

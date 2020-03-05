@@ -13,13 +13,44 @@
     <h1 class="mainTitle"><b>ENDAY</b>TRER.</h1>
 
   </div>
-  <div class="naviBar">
-    <!--TODO: rewrite navigation bar-->
-    <a class="naviBarItem" href="http://endaytrer.1919810.com">HOMO</a>
-    <a class="naviBarItem" href="https://github.com/endaytrer">GITHUB</a>
-    <a class="naviBarItem" href="https://github.com/endaytrer/modelt">MODELT</a>
-    <a class="naviBarItem" href="https://github.com/endaytrer/BICDNA">BICDNA</a>
-  </div>
+  <ul class="navBar">
+    <li class="navItem"><a class="navBarLink" href="http://endaytrer.1919810.com">HOMO</a></li>
+    <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer">GITHUB</a></li>
+    <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer/modelt">MODELT</a></li>
+    <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer/BICDNA">BICDNA</a></li>
+  </ul>
+  <ul class="mNavBar barBefore" id="mobileBar">
+    <li class="mNavItem"><a class="mTitle">Endaytrer</a></li>
+    <div class="dropdown">
+      <label for="expandButton">
+        <input type="checkbox" id="expandButton" style="display: none" ; />
+        <div class="dropBtn" onclick="javascript:expandMenu()">+</div>
+        <div class="clear"></div>
+        <script>
+          function expandMenu() {
+            checkbox = document.getElementById("expandButton");
+            bar = document.getElementById("mobileBar");
+            button = document.getElementsByClassName("dropBtn")[0];
+            if (!checkbox.checked) {
+              button.style.transform = "rotate(45deg)";
+              bar.classList.add("barAfter");
+              bar.classList.remove("barBefore");
+            } else {
+              button.style.transform = "rotate(0deg)";
+              bar.classList.add("barBefore");
+              bar.classList.remove("barAfter");
+            }
+          }
+        </script>
+      </label>
+      <ul class="dropdownList">
+        <li class="mNavItem"><a class="mNavBarLink" href="http://endaytrer.1919810.com">Home</a></li>
+        <li class="mNavItem"><a class="mNavBarLink" href="https://github.com/endaytrer">Github</a></li>
+        <li class="mNavItem"><a class="mNavBarLink" href="https://github.com/endaytrer/modelt">ModelT</a></li>
+        <li class="mNavItem"><a class="mNavBarLink" href="https://github.com/endaytrer/BICDNA">BICDNA</a></li>
+      </ul>
+    </div>
+  </ul>
   <div class="products">
     <div class="cardContainerContainer">
       <h1 class="productTitle">Products</h1>
