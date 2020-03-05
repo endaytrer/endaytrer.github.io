@@ -321,7 +321,7 @@ body {
 }
 
 /* Startify */
-#welcome {
+.welcome {
   width: calc(100vw);
   margin-top: 97px;
   margin-left: -10px;
@@ -330,47 +330,47 @@ body {
   background-image: linear-gradient(rgb(51, 156, 198), rgb(133, 159, 139));
 }
 
-#startify {
+.startify {
   text-align: center;
   font-family: "Fira Code", "Monaco", "Consolas", monospace;
   font-size: 50px;
   color: #fff;
   font-weight: 400;
 }
-#quoteContainer {
+.quoteContainer {
   margin: 0 auto;
   top: calc(50vh - 100px);
   position: relative;
   margin-top: -150px;
   height: min-content;
 }
-#author {
+.author {
   text-align: center;
   font-size: 25px;
   color: #fff;
 }
 
 @media only screen and (min-width: 1080px) {
-  #startify {
+  .startify {
     font-size: 60px;
   }
-  #author {
+  .author {
     font-size: 30px;
   }
-  #quoteContainer {
+  .quoteContainer {
     top: calc(50vh - 120px);
   }
 }
 
 @media only screen and (max-width: 640px) {
-  #welcome {
+  .welcome {
     height: calc(100vh + 53px);
   }
-  #startify {
+  .startify {
     font-size: 40px;
   }
 
-  #author {
+  .author {
     font-size: 20px;
   }
   #quoteContainer {
