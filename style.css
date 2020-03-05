@@ -324,8 +324,8 @@ body {
 .welcome {
   width: calc(100vw);
   margin-top: 97px;
-  margin-left: -10px;
-  margin-right: -10px;
+  margin-left: -20px;
+  margin-right: -20px;
   height: calc(100vh - 154px);
   /* padding-top: */
   background-image: linear-gradient(rgb(51, 156, 198), rgb(133, 159, 139));
