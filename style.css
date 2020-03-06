@@ -322,13 +322,11 @@ body {
 
 /* Startify */
 .welcome {
-  overflow: hidden;
-  margin-top: 53px;
+  margin-top: 97px;
   margin-left: -20px;
   margin-right: -20px;
-  padding-top: 20px;
   height: calc(100vh - 154px);
-  min-height: 500px;
+  /* padding-top: */
   background-image: linear-gradient(rgb(51, 156, 198), rgb(133, 159, 139));
 }
 
@@ -341,7 +339,7 @@ body {
 }
 .quoteContainer {
   margin: 0 auto;
-  top: calc(50% + 40px);
+  top: calc(50vh - 100px);
   position: relative;
   margin-top: -150px;
   height: min-content;
@@ -360,7 +358,7 @@ body {
     font-size: 30px;
   }
   .quoteContainer {
-    top: calc(50% + 40px);
+    top: calc(50vh - 120px);
   }
 }
 
@@ -376,7 +374,7 @@ body {
     font-size: 20px;
   }
   #quoteContainer {
-    top: calc(50% + 60px);
+    top: calc(50vh - 30px);
   }
 }
 
