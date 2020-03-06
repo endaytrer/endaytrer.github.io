@@ -5,6 +5,6 @@ frame = document.getElementById("welcome");
 title = document.getElementById("startify");
 author = document.getElementById("author");
 var rand=Math.floor(Math.random()*sents.length);
-title.innerHTML = '"'+sents[rand]+'"';
+title.innerHTML = sents[rand];
 author.innerHTML = by[rand];
 }
