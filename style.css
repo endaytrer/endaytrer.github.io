@@ -375,7 +375,7 @@ body {
   .author {
     font-size: 20px;
   }
-  #quoteContainer {
+  .quoteContainer {
     top: calc(50% + 60px);
   }
 }
