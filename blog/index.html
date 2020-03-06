@@ -6,6 +6,45 @@
     <title>Document</title>
 </head>
 <body>
-    <h1>Hello World!</h1>
+    <div class="titleBlank">
+        <h1 class="mainTitle"><b>ET</b>BLOG</h1>
+    </div>
+    <!--Navigation Bars-->
+    <ul class="nav navBar">
+        <li class="navItem"><a class="navBarLink" href="http://endaytrer.1919810.com">HOME</a></li>
+        <li class="navItem"><a class="navBarLink" href="http://endaytrer.1919810.com/blog">BLOG</a></li>
+        <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer">GITHUB</a></li>
+    </ul>
+    <ul class="nav mNavBar barBefore" id="mobileBar">
+        <li class="mNavItem"><a class="mTitle">Blog</a></li>
+        <div class="dropdown">
+            <label for="expandButton">
+                <input type="checkbox" id="expandButton" style="display: none" ; />
+                <div class="dropBtn" onclick="javascript:expandMenu()">+</div>
+                <div class="clear"></div>
+                <script>
+                    function expandMenu() {
+                        checkbox = document.getElementById("expandButton");
+                        bar = document.getElementById("mobileBar");
+                        button = document.getElementsByClassName("dropBtn")[0];
+                        if (!checkbox.checked) {
+                            button.style.transform = "rotate(45deg)";
+                            bar.classList.add("barAfter");
+                            bar.classList.remove("barBefore");
+                        } else {
+                            button.style.transform = "rotate(0deg)";
+                            bar.classList.add("barBefore");
+                            bar.classList.remove("barAfter");
+                        }
+                    }
+                </script>
+            </label>
+            <ul class="dropdownList">
+                <li class="mNavItem"><a class="mNavBarLink" href="http://endaytrer.1919810.com">Home</a></li>
+                <li class="mNavItem"><a class="mNavBarLink" href="blog">Blog</a></li>
+                <li class="mNavItem"><a class="mNavBarLink" href="https://github.com/endaytrer">Github</a></li>
+            </ul>
+        </div>
+    </ul>
 </body>
 </html>
