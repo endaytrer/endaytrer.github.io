@@ -382,6 +382,7 @@ body {
   height: calc(100vh - 154px);
   min-height: 500px;
   background-attachment: fixed;
+  background-size: cover;
 }
 
 .startify {
