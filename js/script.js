@@ -21,6 +21,7 @@ window.onload = function () {
             titleBlank.classList.remove("dawn");
             break;
         default:
+            // ???
             frame.style.backgroundImage = 'url("../images/midnight.jpg")';
             titleBlank.classList.add("midnight");
             titleBlank.classList.remove("dawn");
