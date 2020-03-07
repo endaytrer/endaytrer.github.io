@@ -11,17 +11,17 @@ window.onload = function () {
     var rand2 = Math.floor(Math.random() * 3);
     switch (rand2) {
         case 0:
-            frame.style.backgroundImage = 'url("Images/waterpaint.jpg")';
+            frame.style.backgroundImage = 'url("images/waterpaint.jpg")';
             titleBlank.classList.add("waterpaint");
             titleBlank.classList.remove("dawn");
             break;
         case 1:
-            frame.style.backgroundImage = 'url("Images/leaves.jpg")';
+            frame.style.backgroundImage = 'url("images/leaves.jpg")';
             titleBlank.classList.add("leaves");
             titleBlank.classList.remove("dawn");
             break;
         default:
-            frame.style.backgroundImage = 'url("Images/midnight.jpg")';
+            frame.style.backgroundImage = 'url("images/midnight.jpg")';
             titleBlank.classList.add("midnight");
             titleBlank.classList.remove("dawn");
             break;
