@@ -378,14 +378,12 @@ body {
   }
 
   .navItem {
-    display: flex;
-    display: -webkit-flex;
+    display: block;
     float: right;
   }
 
   .navLogo {
-    display: flex;
-    display: -webkit-flex;
+    list-style-type: none;
     float: left;
     transition: 200ms;
   }
