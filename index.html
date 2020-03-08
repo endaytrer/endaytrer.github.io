@@ -7,18 +7,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <link rel="stylesheet" type="text/css" href="css/style.css" />
   <script src="js/script.js"></script>
+  <script src="js/global.js"></script>
 </head>
 
 
 <body>
-  <div class="titleBlank dawn" id="titleBlank">
-    <h1 class="mainTitle"><b>ENDAY</b>TRER</h1>
-  </div>
   <!--Navigation Bars-->
-  <ul class="nav navBar">
-    <li class="navItem"><a class="navBarLink activePage" href="http://endaytrer.1919810.com">HOME</a></li>
-    <li class="navItem"><a class="navBarLink" href="http://endaytrer.1919810.com/blog">BLOG</a></li>
-    <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer">GITHUB</a></li>
+  <ul class="nav navBar fixed" id="navBar">
+    <li class="navLogo"><a class="navBarLink" href="#">ENDAYTRER</a></li>
+    <li class="navItem"><a class="navBarLink" href="https://github.com/endaytrer">Github</a></li>
+    <li class="navItem"><a class="navBarLink" href="http://endaytrer.1919810.com/blog">Blog</a></li>
+    <li class="navItem"><a class="navBarLink activePage" href="http://endaytrer.1919810.com">Home</a></li>
   </ul>
   <ul class="nav mNavBar barBefore" id="mobileBar">
     <li class="mNavItem"><a class="mTitle">Endaytrer</a></li>
@@ -58,68 +57,125 @@
       <h3 id="author" class="author">It's seems that your javascript doesn't work.</h3>
     </div>
   </div>
-  <div class="products">
-    <div class="cardContainerContainer">
-      <h1 class="productTitle">Products</h1>
-      <div class="cardContainer">
-        <label for="thisChecked1">
-          <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;" />
-          <div class="card blurryBeach modelt col-4" onclick="javascript:check1();">
-            <div class="abstract">
-              <h2 class="t21">MODEL<b>T</b></h2>
-              <div class="text">
-                <h4>A Python package<br />for Math<br />Modeling.<br /> <a
-                    href="https://github.com/endaytrer/modelt">View
-                    in
-                    GitHub.</a>
-                </h4>
-              </div>
-            </div>
-            <div class="installation">
-              <h3><b>Installation</b></h3>
+  <div class="cardContainerContainer materialBg">
+    <h1 class="productTitle whiteFg col-12">Products</h1>
+    <div class="cardContainer">
+      <label for="thisChecked1">
+        <input type="checkbox" class="checkBox" id="thisChecked1" style="display: none;" />
+        <div class="card blurryBeach modelt col-4" onclick="javascript:check1();">
+          <div class="abstract">
+            <h2 class="t21">MODEL<b>T</b></h2>
+            <div class="text">
+              <h4>A Python package<br />for Math<br />Modeling.<br /> <a href="https://github.com/endaytrer/modelt">View
+                  in
+                  GitHub.</a>
+              </h4>
             </div>
           </div>
-          <script>
-            function check1() {
-              thisCheck = document.getElementById('thisChecked1');
-              if (thisCheck.checked == false) {
-                otherCheck = document.getElementById('thisChecked2');
-                otherCheck.checked = false;
-              }
+          <div class="installation">
+            <h3><b>Installation</b></h3>
+          </div>
+        </div>
+        <script>
+          function check1() {
+            thisCheck = document.getElementById('thisChecked1');
+            if (thisCheck.checked == false) {
+              otherCheck = document.getElementById('thisChecked2');
+              otherCheck.checked = false;
             }
-          </script>
-        </label>
-        <label for="thisChecked2">
-          <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;" />
-          <div class="card bicDNA crystalClear col-4" onclick="javascript:check2();">
-            <div class="abstract">
-              <h2 class="t21">BIC<b>DNA</b></h2>
-              <div class="text">
-                <h4>A C# Based<br /> DNA Analytical<br /> App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
-                    in
-                    GitHub.</a>
-                </h4>
-              </div>
-            </div>
-            <div class="installation">
-              <h3><b>Installation</b></h3>
+          }
+        </script>
+      </label>
+      <label for="thisChecked2">
+        <input type="checkbox" class="checkBox" id="thisChecked2" style="display: none;" />
+        <div class="card bicDNA crystalClear col-4" onclick="javascript:check2();">
+          <div class="abstract">
+            <h2 class="t21">BIC<b>DNA</b></h2>
+            <div class="text">
+              <h4>A C# Based<br /> DNA Analytical<br /> App.<br /> <a href="https://github.com/endaytrer/BICDNA">View
+                  in
+                  GitHub.</a>
+              </h4>
             </div>
           </div>
-          <script>
-            function check2() {
-              thisCheck = document.getElementById('thisChecked2');
-              if (thisCheck.checked == false) {
-                otherCheck = document.getElementById('thisChecked1');
-                otherCheck.checked = false;
-              }
+          <div class="installation">
+            <h3><b>Installation</b></h3>
+          </div>
+        </div>
+        <script>
+          function check2() {
+            thisCheck = document.getElementById('thisChecked2');
+            if (thisCheck.checked == false) {
+              otherCheck = document.getElementById('thisChecked1');
+              otherCheck.checked = false;
             }
-          </script>
-        </label>
-        <div class="clear"></div>
-      </div>
+          }
+        </script>
+      </label>
+      <div class="clear"></div>
     </div>
   </div>
-  <div class="about">
+  <div class="contentContainer">
+    <h1 class="subTitle col-12 mcol-12 tcol-12">Resume</h1>
+    <img class="headPhoto"
+      src="https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1583664152098&di=650519d299b74da44fa9ae324c2e819f&imgtype=0&src=http%3A%2F%2Fi0.hdslb.com%2Fbfs%2Farticle%2F1f58893c3c50d3335e3e0e22cb699b250c3c0649.jpg"
+      width="100px" height="100px">
+    <div class="col-12 mcol-12 tcol-12 subTitle">
+      <h2>Yaju Senpai</h2>
+    </div>
+    <div class="subContent col-5 mcol-10 tcol-10">
+      <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Rem pariatur consequatur corporis ut
+        asperiores cum aut provident minus a quisquam officia nesciunt, esse placeat ab expedita vel explicabo dolores
+        nostrum!Lorem ipsum dolor sit amet consectetur adipisicing elit. Eum reiciendis ut harum? Facilis quia ipsum at
+        quasi
+        illo alias similique molestiae architecto quo cum magnam, pariatur corporis animi odio a.</p>
+      <p>Lorem ipsum dolor sit, amet consectetur adipisicing elit. Sit architecto esse labore repudiandae quia voluptate
+        incidunt. Cum quae eos magni dolore est, qui accusantium ut porro molestias, minima quibusdam corporis?</p>
+      <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Rem pariatur consequatur corporis ut
+        asperiores cum aut provident minus a quisquam officia nesciunt, esse placeat ab expedita vel explicabo dolores
+        nostrum!</p>
+    </div>
+    <div class="subContent col-5 mcol-10 tcol-10">
+      <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Rem pariatur consequatur corporis ut
+        asperiores cum aut provident minus a quisquam officia nesciunt, esse placeat ab expedita vel explicabo dolores
+        nostrum!</p>
+      <p>Lorem, ipsum dolor sit amet consectetur adipisicing elit. Laboriosam, eum adipisci sit voluptate iure molestias
+        fugiat consequatur dolor tempora excepturi dolorem distinctio odio mollitia optio nesciunt recusandae dicta,
+        voluptatum est.</p>
+      <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Rem pariatur consequatur corporis ut
+        asperiores cum aut provident minus a quisquam officia nesciunt, esse placeat ab expedita vel explicabo dolores
+        nostrum!</p>
+      <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Totam neque unde, id vel iusto, autem voluptate ipsam
+        accusamus sapiente molestiae facilis ea ut! Omnis ex laborum sint maxime rem non?</p>
+    </div>
+  </div>
+  <div class="contentContainer materialBg whiteFg">
+    <h1 class="subTitle col-12">Medias</h1>
+    <div class="subContent bilibili col-4 tcol-10 mcol-10 pink whiteFg">
+      <h2>Bilibili</h2>
+    </div>
+    <div class="subContent youtube col-4 tcol-10 mcol-10 cherry whiteFg">
+      <h2>YouTube</h2>
+    </div>
+  </div>
+  <div class="contentContainer materialBg whiteFg">
+    <h1 class="subTitle col-12">Blogs</h1>
+    <div class="subContent bilibili col-3 tcol-10 mcol-10 cheerUpEmoKid">
+      <h2>Tasmy Lurum
+      </h2>
+    </div>
+    <div class="subContent youtube col-5 tcol-10 mcol-10 leaves">
+      <h2>Lorem Ipsum Dolor</h2>
+    </div>
+    <div class="subContent bilibili col-5 tcol-10 mcol-10 midnight">
+      <h2>Guposb Subasm
+      </h2>
+    </div>
+    <div class="subContent youtube col-3 tcol-10 mcol-10 mango">
+      <h2>Dopck Idu u Sast</h2>
+    </div>
+  </div>
+  <div class="contentContainer about">
     <p class="footnote">©Made by Endaytrer. Powered by GitHub Pages.</p>
 
     </p>
