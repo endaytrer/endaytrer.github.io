@@ -267,3 +267,8 @@ function togglePopUp() {
     popup.classList.remove("poped");
   }
 }
+
+function addTemplate(event, tempNum) {
+  event.stopPropagation();
+  document.querySelector(".listSelector").appendChild()
+}
