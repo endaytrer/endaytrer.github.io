@@ -278,7 +278,7 @@ input[type="checkbox"]:checked + .card {
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0px 5px 20px rgba(0, 0, 0, 0.8);
   width: 100vw;
-  height: 45vh;
+  height: 45.5vh;
   top: 40px;
   transition: height 0.1s ease-out;
 }
@@ -415,7 +415,7 @@ input[type="checkbox"]:checked + .switch {
 }
 
 .listSelector {
-  overflow-Y: scroll;
+  overflow-y: scroll;
 }
 
 .listItem {
