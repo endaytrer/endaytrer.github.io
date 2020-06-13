@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>伪造紫码生成器</title>
-    <script src="../node_modules/vue/dist/vue.js"></script>
-    <script src="../node_modules/jquery/dist/jquery.js"></script>
-    <script src="../node_modules/qrcodejs2/qrcode.js"></script>
+    <script src="../node_modules/vue/dist/vue.min.js"></script>
+    <script src="../node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="../node_modules/qrcodejs2/qrcode.min.js"></script>
     <script src="script.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -56,7 +56,6 @@
                 created: function () {
                     this.timer();
                     this.getData();
-                    this.generateCode();
                 },
                 methods: {
                     getData() {
@@ -76,9 +75,6 @@
                         return setInterval(() => {
                             this.getData();
                         }, 100);
-                    },
-                    generateCode() {
-                        var code = new QRCode("qrCode", "hello world");
                     }
                 },
                 destroyed: function () {
