@@ -13,7 +13,7 @@ export default {
 
 <style scoped>
 .container {
-  height: 100%;
+  height: calc(60vh + 140px);
   display: flex;
   flex-direction: column;
   align-items: flex-end;

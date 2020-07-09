@@ -98,11 +98,13 @@ export default {
   z-index: 10;
   transition: all ease-out 0.3s;
   width: 60vw;
-  height: calc(60vh + 140px);
+  min-height: calc(60vh + 140px);
   background-color: var(--panel-background-color);
   border-radius: var(--corner-radius);
   box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.07);
   margin: 20px 40px;
+  display: flex;
+  flex-direction: column;
 }
 
 .show {
