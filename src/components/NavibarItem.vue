@@ -1,6 +1,8 @@
 <template>
   <button class="navibarItem" :class="{active : isActive}" @click="$emit('change')">
-    <div class="icon" :style="{color: accentColor}">{{ iconText }}</div>
+    <div class="icon" :style="{color: accentColor}">
+      <font-awesome-icon :icon="iconText" />
+    </div>
     <div class="text">{{ navitemText }}</div>
   </button>
 </template>
@@ -8,7 +10,12 @@
 export default {
   name: "NavibarItem",
   props: {
-    iconText: { type: String, default: "􀅫" },
+    iconText: {
+      type: Array,
+      default: function() {
+        return ["fab", "font-awesome"];
+      }
+    },
     navitemText: {
       type: String,
       default: "Need to be edited"
@@ -26,8 +33,8 @@ export default {
 </script>
 <style scoped>
 .navibarItem {
-  color: var(--main-foreground-color);
   font-family: "SF Pro Display", Helvetica, Arial, sans-serif;
+  color: var(--main-foreground-color);
   font-size: inherit;
   outline: none;
   border: none;

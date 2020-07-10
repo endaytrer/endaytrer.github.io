@@ -6,7 +6,10 @@ import {
   library
 } from '@fortawesome/fontawesome-svg-core'
 import {
-  faUserSecret
+  faHome,
+  faBoxes,
+  faDraftingCompass,
+  faUserFriends
 } from '@fortawesome/free-solid-svg-icons'
 import {
   FontAwesomeIcon
@@ -16,10 +19,13 @@ import {
   faGithub,
   faTwitter
 } from '@fortawesome/free-brands-svg-icons'
-library.add(faUserSecret,
+library.add(faHome,
   faFontAwesome,
   faGithub,
-  faTwitter
+  faTwitter,
+  faBoxes,
+  faDraftingCompass,
+  faUserFriends
 )
 
 Vue.component('font-awesome-icon', FontAwesomeIcon)

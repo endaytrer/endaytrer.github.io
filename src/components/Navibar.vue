@@ -26,22 +26,22 @@ export default {
           {
             index: 0,
             text: "Main Page",
-            icon: "􀎞"
+            icon: ["fas", "home"]
           },
           {
             index: 1,
             text: "Projects",
-            icon: "􀬨"
+            icon: ["fas", "boxes"]
           },
           {
             index: 2,
             text: "Design",
-            icon: "􀍵"
+            icon: ["fas", "drafting-compass"]
           },
           {
             index: 3,
             text: "Collaboration",
-            icon: "􀉫"
+            icon: ["fas", "user-friends"]
           }
         ];
       }

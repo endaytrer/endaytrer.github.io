@@ -63,6 +63,7 @@ export default {
 #app {
   /* background-image: url("https://images.unsplash.com/photo-1593642633279-1796119d5482?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=1400&q=60"); */
   font-family: "SF Pro Display", Helvetica, Arial, sans-serif;
+  /* font-family: 'Times New Roman', Times, serif; */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
