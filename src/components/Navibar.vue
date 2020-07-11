@@ -67,10 +67,11 @@ export default {
   }
 };
 </script>
-<style>
+<style scoped>
 .naviBar {
   width: 300px;
   height: 60vh;
+  position: relative;
   background-color: var(--panel-background-color);
   border-radius: var(--corner-radius);
   display: flex;
@@ -80,6 +81,10 @@ export default {
   padding-top: 20px;
   box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.07);
   backdrop-filter: blur(50px);
-  transition: all ease-out 300ms;
+  transition: background-color ease-out 300ms, box-shadow ease-out 300ms;
+}
+.noBackground {
+  background-color: transparent !important;
+  box-shadow: none;
 }
 </style>
