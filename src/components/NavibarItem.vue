@@ -41,7 +41,7 @@ export default {
   background: transparent;
   position: relative;
   height: 2em;
-  width: 220px;
+  width: 190px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -61,5 +61,17 @@ export default {
 .text {
   position: absolute;
   left: 50px;
+}
+@media screen and (max-width: 800px) {
+  .navibarItem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+  }
+  .text {
+    display: none;
+  }
 }
 </style>

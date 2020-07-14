@@ -21,26 +21,37 @@ export default {
   width: 100%;
   overflow: hidden;
 }
+
 .placeTaker {
   height: 100px;
 }
 h1 {
   font-family: "Jetbrains Mono", "Fira Code", "Consolas", monospace;
-  font-size: 64px;
+  font-size: 5vw;
   font-weight: 300;
   border-right: 4px solid;
   animation: grow 5s steps(13) normal both infinite, blink 1s normal infinite;
   white-space: nowrap;
+}
+@media only screen and (max-width: 800px) {
+  .container {
+    overflow: unset;
+  }
+  h1 {
+    font-size: 8vw;
+    animation: none;
+    border-right: none;
+  }
 }
 @keyframes grow {
   0% {
     width: 0;
   }
   30% {
-    width: 499.2px;
+    width: 14ex;
   }
   85% {
-    width: 499.2px;
+    width: 14ex;
   }
   95% {
     width: 0;

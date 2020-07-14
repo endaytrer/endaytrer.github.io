@@ -69,19 +69,29 @@ export default {
 </script>
 <style scoped>
 .naviBar {
-  width: 300px;
-  height: 60vh;
-  position: relative;
+  width: 220px;
+  height: auto;
   background-color: var(--panel-background-color);
   border-radius: var(--corner-radius);
   display: flex;
+  position: relative;
+  margin-top: 20px;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-top: 20px;
+  justify-content: center;
+  padding: 10px 0px;
   box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.07);
   backdrop-filter: blur(50px);
-  transition: background-color ease-out 300ms, box-shadow ease-out 300ms;
+  transition: var(--default-transition);
+}
+@media screen and (max-width: 800px) {
+  .naviBar {
+    width: 60px;
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 20;
+  }
 }
 .noBackground {
   background-color: transparent !important;

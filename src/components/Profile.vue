@@ -36,18 +36,17 @@ export default {
 
 <style>
 .profile {
-  width: 300px;
+  width: 220px;
   height: 100px;
-  margin: 0px 0px 20px;
+  margin: 80px 0px 0px;
   border-radius: var(--corner-radius);
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   backdrop-filter: blur(50px);
   background-color: var(--sec-background-color);
   box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.07);
-  transition: all ease-out 300ms;
+  transition: var(--default-transition);
 }
 .profilePhoto {
   margin: 0px 20px;
@@ -72,6 +71,24 @@ export default {
 }
 .iconContainer:hover {
   color: var(--main-foreground-color);
+}
+@media screen and (max-width: 800px) {
+  .textView {
+    display: none;
+  }
+  .profile {
+    width: 0px;
+    height: 0px;
+    position: fixed;
+    z-index: 20;
+    bottom: 260px;
+    left: 20px;
+    background: transparent;
+    backdrop-filter: none;
+  }
+  .profilePhoto {
+    margin: 0;
+  }
 }
 .noBackground {
   background-color: transparent;

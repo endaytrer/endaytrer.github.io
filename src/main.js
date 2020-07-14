@@ -27,11 +27,12 @@ library.add(faHome,
   faDraftingCompass,
   faUserFriends
 )
+import 'github-markdown-css/github-markdown.css'
 
 Vue.component('font-awesome-icon', FontAwesomeIcon)
 
 Vue.config.productionTip = false
 
 new Vue({
-  render: h => h(App),
+  render: h => h(App)
 }).$mount('#app')
