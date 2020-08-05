@@ -1,0 +1,7 @@
+language: javascript
+
+install: npm install
+script: npm run build | cd dist | git add --all | git commit -m "auto deploy" | git push
+deploy:
+  provider: pages
+  skip_cleanup: true
