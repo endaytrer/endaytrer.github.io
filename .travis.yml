@@ -1,7 +1,8 @@
-language: javascript
-
-install: npm install
-script: npm run build | cd dist | git add --all | git commit -m "auto deploy" | git push
 deploy:
   provider: pages
   skip_cleanup: true
+  github_token: b46ba05798eccb0939ac1951e64a44fadf2ec0de
+  keep_history: true
+  local_dir: ./dist/
+  on:
+    branch: master
