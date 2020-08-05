@@ -23,30 +23,37 @@ export default {
   props: {
     name: {
       type: String,
-      default: "Endaytrer"
+      default: "Endaytrer",
     },
     profilePhoto: {
       type: String,
       default:
-        "https://avatars3.githubusercontent.com/u/49216312?s=400&u=f1699afc6ee4c233cc002a16fcba29215efd16d4&v=4"
-    }
-  }
+        "https://avatars3.githubusercontent.com/u/49216312?s=400&u=f1699afc6ee4c233cc002a16fcba29215efd16d4&v=4",
+    },
+  },
 };
 </script>
 
-<style>
+<style scoped>
 .profile {
-  width: 220px;
+  max-width: 320px;
+  width: calc(100% - 40px);
   height: 100px;
-  margin: 80px 0px 0px;
   border-radius: var(--corner-radius);
   display: flex;
+  position: fixed;
+  bottom: 170px;
+  left: 10%;
   align-items: center;
   justify-content: flex-start;
-  backdrop-filter: blur(50px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   background-color: var(--sec-background-color);
   box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.07);
   transition: var(--default-transition);
+}
+.profile:hover {
+  background-color: var(--focused-background-color);
 }
 .profilePhoto {
   margin: 0px 20px;
@@ -72,25 +79,31 @@ export default {
 .iconContainer:hover {
   color: var(--main-foreground-color);
 }
-@media screen and (max-width: 800px) {
-  .textView {
-    display: none;
-  }
-  .profile {
-    width: 0px;
-    height: 0px;
-    position: fixed;
-    z-index: 20;
-    bottom: 260px;
-    left: 20px;
-    background: transparent;
-    backdrop-filter: none;
-  }
-  .profilePhoto {
-    margin: 0;
-  }
-}
 .noBackground {
   background-color: transparent;
+}
+.shrink {
+  backdrop-filter: none;
+  filter: blur(100px);
+}
+
+.toLeft {
+  left: 20px;
+}
+@media only screen and (max-width: 1000px) {
+  .toLeft {
+    bottom: 145px;
+    width: 70px;
+    background: none;
+  }
+  .profile:hover {
+    background-color: transparent;
+  }
+  .toLeft .textView {
+    display: none;
+  }
+  .toLeft .profilePhoto {
+    margin: 0;
+  }
 }
 </style>

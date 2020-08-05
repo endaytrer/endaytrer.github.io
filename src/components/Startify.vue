@@ -1,48 +1,43 @@
 <template>
   <div class="container">
-    <div class="placeTaker"></div>
     <h1>Yesen, study!</h1>
   </div>
 </template>
 
 <script>
 export default {
-  name: "Startify"
+  name: "Startify",
 };
 </script>
 
 <style scoped>
 .container {
-  height: calc(60vh + 140px);
+  margin-left: 10%;
+  z-index: 5;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  width: 50vw;
   overflow: hidden;
+  transform: translateX(0px);
+  transition: var(--default-transition);
 }
 
-.placeTaker {
-  height: 100px;
+.textHidden h1 {
+  color: transparent !important;
+  border-color: transparent !important;
 }
 h1 {
   font-family: "Jetbrains Mono", "Fira Code", "Consolas", monospace;
-  font-size: 5vw;
+  font-size: 6vw;
   font-weight: 300;
   border-right: 4px solid;
   animation: grow 5s steps(13) normal both infinite, blink 1s normal infinite;
   white-space: nowrap;
+  overflow: hidden;
+  transition: var(--default-transition);
 }
-@media only screen and (max-width: 800px) {
-  .container {
-    overflow: unset;
-  }
-  h1 {
-    font-size: 8vw;
-    animation: none;
-    border-right: none;
-  }
-}
+
 @keyframes grow {
   0% {
     width: 0;
@@ -67,5 +62,12 @@ h1 {
   to {
     border-right-color: transparent;
   }
+}
+.bluring h1 {
+  filter: blur(10px);
+}
+.bluring {
+  filter: brightness(40%);
+  transform: translateX(-6%);
 }
 </style>

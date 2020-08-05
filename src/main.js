@@ -9,7 +9,8 @@ import {
   faHome,
   faBoxes,
   faDraftingCompass,
-  faUserFriends
+  faUserFriends,
+  faHandshake
 } from '@fortawesome/free-solid-svg-icons'
 import {
   FontAwesomeIcon
@@ -25,12 +26,21 @@ library.add(faHome,
   faTwitter,
   faBoxes,
   faDraftingCompass,
-  faUserFriends
+  faUserFriends,
+  faHandshake
 )
+
+// Markdown
 import 'github-markdown-css/github-markdown.css'
+import hljs from 'highlight.js'
 
 Vue.component('font-awesome-icon', FontAwesomeIcon)
-
+Vue.directive('highlight', function (el) {
+  const blocks = el.querySelectorAll('pre code')
+  blocks.forEach(block => {
+    hljs.highlightBlock(block)
+  })
+})
 Vue.config.productionTip = false
 
 new Vue({
