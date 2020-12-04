@@ -20,7 +20,7 @@
     "babel-runtime": "^6.26.0",
     "core-js": "^3.6.5",
     "github-markdown-css": "^4.0.0",
-    "highlight.js": "^10.1.1",
+    "highlight.js": "^10.4.1",
     "travis": "^0.1.1",
     "vue": "^2.6.11",
     "vue-markdown": "^2.2.4"
