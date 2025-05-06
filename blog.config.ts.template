@@ -1,0 +1,51 @@
+interface BlogConfig {
+  realName: string,
+  siteName: string,
+  bio: string[],
+  sites: {
+    name: string,
+    url: string,
+    introduction: string,
+  }[],
+  social: {
+    type: "facebook" | "instagram" | "twitter" | "whatsapp" | "telegram" | "github" | "rednote" | "leetcode" | "linkedin" | "mail",
+    url: string
+  }[],
+  links: {
+    name: string,
+    url: string,
+  }[],
+  copyright: string[],
+}
+const config: BlogConfig = {
+  realName: "Your name",
+  siteName: "The site name, e.g. danielgu.org",
+  bio: [
+    "Your bio.",
+    "You can use HTML tags <b>like this</b>."
+  ],
+  sites: [
+    {
+        name: "A demo site of yours",
+        url: "/path/to/the/demo",
+        introduction: `This interactive WebGL path tracing demo demonstrate path tracing.
+        Path tracing technique uses the Monte Carlo method to accurately model global
+        illumination, simulate different surface characteristics, and capture a wide range
+        of effects observable in a camera system.`
+    }
+  ],
+  social: [
+    {
+      type: "instagram",
+      url: "https://www.instagram.com/yourid/"
+    }
+  ],
+  links: [
+    {
+      name: "A friend link to me",
+      url: "https://danelgu.org/"
+    },
+  ],
+  copyright: ["Your copyright info"]
+}
+export default config
