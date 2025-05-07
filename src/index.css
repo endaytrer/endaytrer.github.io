@@ -13,6 +13,10 @@ body {
 
 .font-pixel {
   font-family: "VT323";
+  font-variant-ligatures: none;
+}
+.font-fancy {
+  font-family: "Meie Script";
 }
 .font-serif {
   font-family: "Noto Serif SC", Cambria, Cochin, Georgia, Times, 'Times New Roman', serif

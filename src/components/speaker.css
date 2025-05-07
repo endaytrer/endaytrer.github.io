@@ -1,0 +1,59 @@
+
+.speaker {
+    background-color: var(--color-teal-700);
+    background-image: linear-gradient(45deg, transparent 0% 40%, var(--color-teal-500) 45% 55%, transparent 60% 100%),
+        linear-gradient(-45deg, transparent 0% 40%, var(--color-teal-500) 45% 55%, transparent 60% 100%),
+        linear-gradient(45deg, transparent 0% 40%, var(--color-teal-600) 45% 55%, transparent 60% 100%),
+        linear-gradient(-45deg, transparent 0% 40%, var(--color-teal-600) 45% 55%, transparent 60% 100%);
+    
+    background-size: 0.5rem 0.5rem,
+        0.5rem 0.5rem,
+        0.5rem 0.5rem,
+        0.5rem 0.5rem;
+    background-position: 0 0,
+        0 0,
+        0.25rem 0,
+        0.125rem 0.125rem;
+    box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.2),
+        inset 5px 5px 10px rgba(255, 255, 255, 0.15),
+        inset -5px -5px 10px rgba(0, 0, 0, 0.1),
+        2px 8px 16px rgba(0, 0, 0, 0.1);
+        
+}
+@media (prefers-color-scheme: dark) {
+    .speaker {
+
+        background-color: var(--color-zinc-950);
+        background-image: linear-gradient(45deg, transparent 0% 40%, var(--color-zinc-800) 45% 55%, transparent 60% 100%),
+            linear-gradient(-45deg, transparent 0% 40%, var(--color-zinc-800) 45% 55%, transparent 60% 100%),
+            linear-gradient(45deg, transparent 0% 40%, var(--color-zinc-900) 45% 55%, transparent 60% 100%),
+            linear-gradient(-45deg, transparent 0% 40%, var(--color-zinc-900) 45% 55%, transparent 60% 100%);
+
+        box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.9),
+            inset 5px 5px 10px rgba(255, 255, 255, 0.03),
+            inset -5px -5px 10px rgba(0, 0, 0, 0.2),
+            3px 8px 16px -2px rgba(0, 0, 0, 0.5);
+    }
+}
+.brand {
+    text-shadow: 0 0 2px var(--color-yellow-800),
+        0 1px 4px rgba(0, 0, 0, 0.1);
+}
+.brand::after {
+    content: "Danielgu";
+    position: absolute;
+    top: -0.5px;
+    left: -0.5px;
+    color: var(--color-yellow-100);
+}
+
+@media (prefers-color-scheme: dark) {
+    .brand {
+        text-shadow: 0 0 2px var(--color-zinc-800),
+            0 1px 4px black;
+    }
+    .brand::after {
+        color: var(--color-zinc-700);
+    }
+
+}
