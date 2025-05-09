@@ -1,8 +1,16 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useLayoutEffect, useState } from 'react';
 import "./crt.css";
 
-function Crt({ children, cursor, onKeyDown }: { children: ReactNode, cursor: boolean, onKeyDown: (e: React.KeyboardEvent) => void }) {
-    return <div id="crt" autoFocus tabIndex={0} onKeyDown={(e) => onKeyDown(e)} className="crt
+function Crt({ ref, children, cursor, onKeyDown }: { ref: React.RefObject<HTMLDivElement | null>, children: (width: number, height: number) => ReactNode, cursor: boolean, onKeyDown: (e: React.KeyboardEvent) => void }) {
+    const [width, setWidth] = useState(0);
+    const [height, setHeight] = useState(0);
+
+    useLayoutEffect(() => {
+        setWidth((ref.current as HTMLDivElement).clientWidth - 16);
+        setHeight((ref.current as HTMLDivElement).clientHeight - 16);
+    }, []);
+
+    return <div ref={ref} autoFocus tabIndex={0} onKeyDown={(e) => onKeyDown(e)} className="crt
         font-pixel
         mx-5
         text-xl lg:text-2xl min-h-72 lg:min-h-96
@@ -13,15 +21,14 @@ function Crt({ children, cursor, onKeyDown }: { children: ReactNode, cursor: boo
     ">
         <div className="layer -z-10 display text-lime-50 text-shadow-green-600
             selection:bg-lime-50 selection:text-emerald-700
-            p-5 lg:px-10 lg:py-12 overflow-scroll
+            p-2 overflow-hidden
         ">
-            {children}
+            {children(width, height)}
             {cursor &&<span className="cursor bg-lime-50">&nbsp;</span>}
         </div>
         <div className="layer scanlines pointer-events-none"></div>
         <div className="layer glow pointer-events-none"></div>
     </div>
 }
-
 
 export default Crt;
