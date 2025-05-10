@@ -28,7 +28,7 @@ loop:
     
     dec b
     bnz loop, b
-    mov x, 69
+    mov x, 0
     scall SYSCALL_EXIT
 `
     },
@@ -42,7 +42,7 @@ SYSCALL_PUT_CHAR = 3
 __start:
     nop
     mov sp, 1023
-    mov x, 3
+    mov x, 'Z' - 'A'
     call print_int
 
 
@@ -55,13 +55,11 @@ exit:
 
 print_int:
     push lr
-    push x
-    push y
 
     bn print_int_endl, x // go to end if x < 0
-    mov y, 'A'
+    mov y, 'Z'
     push x
-    add x, x, y
+    sub x, y, x
     scall SYSCALL_PUT_CHAR
     pop x
     dec x
@@ -75,8 +73,6 @@ print_int_endl:
     scall SYSCALL_PUT_CHAR
 
 epologue:
-    pop y
-    pop x
     pop lr
     ret
 

@@ -1,7 +1,7 @@
 import React, { ReactNode, useLayoutEffect, useState } from 'react';
 import "./crt.css";
 
-function Crt({ ref, children, cursor, onKeyDown }: { ref: React.RefObject<HTMLDivElement | null>, children: (width: number, height: number) => ReactNode, cursor: boolean, onKeyDown: (e: React.KeyboardEvent) => void }) {
+function Crt({ ref, children, onKeyDown }: { ref: React.RefObject<HTMLDivElement | null>, children: (width: number, height: number) => ReactNode, onKeyDown: (e: React.KeyboardEvent) => void }) {
     const [width, setWidth] = useState(0);
     const [height, setHeight] = useState(0);
 
@@ -24,7 +24,6 @@ function Crt({ ref, children, cursor, onKeyDown }: { ref: React.RefObject<HTMLDi
             p-2 overflow-hidden
         ">
             {children(width, height)}
-            {cursor &&<span className="cursor bg-lime-50">&nbsp;</span>}
         </div>
         <div className="layer scanlines pointer-events-none"></div>
         <div className="layer glow pointer-events-none"></div>

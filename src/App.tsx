@@ -7,6 +7,8 @@ import RadioGroup from './components/RadioGroup';
 import { Program, defaultPrograms } from './programs';
 import Speaker from './components/Speaker';
 import Editor from './components/Editor';
+import { assemble, machine_create, machine_step, machine_free } from './wasm/archblog';
+import InteractiveScreen from './components/InteractiveScreen';
 
 const navLinks = [
   {
@@ -66,6 +68,12 @@ const App = () => {
   }, []);
   const [machinePage, setMachinePage] = useState(0);
   const [programSelection, setProgramSelection] = useState(-1);
+  const runningProgram = useRef<number>(null);
+  const [runningMachine, setRunningMachine] = useState<number | null>(null);
+  const [programCompilationError, setProgramCompilationError] = useState("");
+
+  const inputBuffer = document.querySelector("#input-buffer") as HTMLPreElement;
+  const outputBuffer = document.querySelector("#output-buffer") as HTMLPreElement;
 
   const disambiguatesProgramName: (oldName: string) => string = (oldName) => {
     if (allPrograms.findIndex(({name}) => name === oldName) !== -1) {
@@ -88,7 +96,7 @@ const App = () => {
       <header className="w-full min-h-svh flex flex-row items-center justify-center py-16 bg-teal-500 dark:bg-zinc-900 text-teal-900 dark:text-teal-500 rounded-b-sm shadow-lg">
         <div className="flex flex-col lg:flex-row w-full max-w-7xl">
           <div className="w-full lg:w-2/3">
-            <Crt ref={crtRef} cursor={machinePage === 0 || machinePage === 3} onKeyDown={(e) => {
+            <Crt ref={crtRef} onKeyDown={(e) => {
               if (machinePage === 1) {
                 if (e.key === "Escape" || e.key === 'Tab') {
                   return;
@@ -103,7 +111,7 @@ const App = () => {
                   }
                 }
                 e.preventDefault()
-              } else if (machinePage === 2) {
+              } else if (machinePage === 2 || machinePage === 3) {
                 setEditorKeyEvent(e);
               }
             }}>
@@ -117,7 +125,7 @@ const App = () => {
                       (anchorRef.current as HTMLDivElement).scrollIntoView({
                         behavior: 'smooth'
                       });
-                    }}>Start exploring ...</a> </span>
+                    }}>Start exploring ...</a> <span className="cursor bg-lime-50">&nbsp;</span></span>
                   </div>
                 }
                 if (machinePage === 1) {
@@ -199,6 +207,9 @@ const App = () => {
                       }
                     }}/>
                 }
+                if (machinePage === 3) {
+                  return <InteractiveScreen error={programCompilationError} keyEvent={editorKeyEvent}/>
+                }
               }}
             </Crt>
           </div>
@@ -207,8 +218,42 @@ const App = () => {
             <div className="w-full  rounded-md p-4 border-1 border-teal-600 dark:border-teal-950">
               <RadioGroup crtRef={crtRef} options={["START", "LOAD", "PROGRAM", "RUN"]} selection={machinePage} onChange={(v) => {
                 setMachinePage(v);
-                if (v === 2) {
+                if (v ===  2 || v == 3) {
                   setEditorKeyEvent(null);
+                }
+                if (v === 3) {
+                  if (runningProgram.current !== null) {
+                    clearInterval(runningProgram.current);
+                    if (runningMachine !== null) {
+                      machine_free(runningMachine);
+                    }
+                  };
+                  if (programSelection === -1 || programSelection === allPrograms.length) {
+                    setProgramCompilationError("Error: invalid program");
+                    return;
+                  }
+                  const program = allPrograms[programSelection];
+                  const source = program.program;
+                  try {
+                      const bytes = assemble(source);
+                      setProgramCompilationError("");
+                      const machine = machine_create(bytes);
+                      setRunningMachine(machine);
+                      inputBuffer.textContent = "";
+                      outputBuffer.textContent = "";
+                      const itvl = setInterval(() => {
+                        if (machine_step(machine)) {
+                          machine_free(machine);
+                          clearInterval(runningProgram.current as number);
+                          runningProgram.current = null;
+                          setRunningMachine(null);
+                        }
+                      }, 0);
+                      runningProgram.current = itvl;
+                  } catch (e) {
+                    setProgramCompilationError("Error: " + e);
+                    runningProgram.current = null;
+                  }
                 }
               }} />
             </div>
