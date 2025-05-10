@@ -207,7 +207,7 @@ const App = () => {
                       }
                     }}/>
                 }
-                if (machinePage === 3) {
+                if (machinePage === 3 || machinePage === -1) {
                   return <InteractiveScreen error={programCompilationError} keyEvent={editorKeyEvent}/>
                 }
               }}
@@ -230,6 +230,7 @@ const App = () => {
                   };
                   if (programSelection === -1 || programSelection === allPrograms.length) {
                     setProgramCompilationError("Error: invalid program");
+                    setTimeout(() => setMachinePage(-1), 150);
                     return;
                   }
                   const program = allPrograms[programSelection];
@@ -247,11 +248,13 @@ const App = () => {
                           clearInterval(runningProgram.current as number);
                           runningProgram.current = null;
                           setRunningMachine(null);
+                          setMachinePage(-1);
                         }
                       }, 0);
                       runningProgram.current = itvl;
                   } catch (e) {
                     setProgramCompilationError("Error: " + e);
+                    setTimeout(() => setMachinePage(-1), 150);
                     runningProgram.current = null;
                   }
                 }
