@@ -110,25 +110,27 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 /**
+ * @param {number} dmem_size
  * @param {Uint8Array} program
  */
-export function run_blocking(program) {
+export function run_blocking(dmem_size, program) {
     const ptr0 = passArray8ToWasm0(program, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.run_blocking(ptr0, len0);
+    const ret = wasm.run_blocking(dmem_size, ptr0, len0);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
 
 /**
+ * @param {number} dmem_size
  * @param {Uint8Array} program
  * @returns {number}
  */
-export function machine_create(program) {
+export function machine_create(dmem_size, program) {
     const ptr0 = passArray8ToWasm0(program, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.machine_create(ptr0, len0);
+    const ret = wasm.machine_create(dmem_size, ptr0, len0);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -156,19 +158,22 @@ function getArrayU8FromWasm0(ptr, len) {
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 /**
+ * @param {string | null | undefined} file_name
  * @param {string} source
  * @returns {Uint8Array}
  */
-export function assemble(source) {
-    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.assemble(ptr0, len0);
+export function assemble_executable(file_name, source) {
+    var ptr0 = isLikeNone(file_name) ? 0 : passStringToWasm0(file_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.assemble_executable(ptr0, len0, ptr1, len1);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
-    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v2;
+    return v3;
 }
 
 export function __wbg_buffergetchar_cb742a11518b548a(arg0) {
@@ -197,9 +202,5 @@ export function __wbindgen_init_externref_table() {
 export function __wbindgen_string_new(arg0, arg1) {
     const ret = getStringFromWasm0(arg0, arg1);
     return ret;
-};
-
-export function __wbindgen_throw(arg0, arg1) {
-    throw new Error(getStringFromWasm0(arg0, arg1));
 };
 

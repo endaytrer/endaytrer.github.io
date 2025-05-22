@@ -7,6 +7,8 @@ blog.config.ts
 # Dist
 node_modules
 dist/
+static/blogs
+static/api
 
 # IDE
 .vscode/*

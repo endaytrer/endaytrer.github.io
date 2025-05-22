@@ -1,0 +1,67 @@
+.knob-dial {
+
+    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4),
+        2px 4px 8px rgba(0, 0, 0, 0.2),
+        4px 8px 8px -4px rgba(0, 0, 0, 0.2),
+        8px 16px 16px -6px rgba(0, 0, 0, 0.1);
+}
+.knob-dial-shading {
+
+    z-index: 2;
+
+    background-image: conic-gradient(at 50% -50%,
+        rgba(255, 255, 255, 0.08) 0deg, transparent 45deg, rgba(0, 0, 0, 0.4) 120deg, rgba(0, 0, 0, 0.4) 170deg, rgba(255, 255, 255, 0.12) 210deg,
+    rgba(255, 255, 255, 0.24) 230deg 330deg, rgba(255, 255, 255, 0.08) 360deg);
+}
+@media (prefers-color-scheme: dark) {
+    .knob-dial {
+        box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.4),
+            4px 8px 8px -4px rgba(0, 0, 0, 0.4),
+            8px 16px 16px -6px rgba(0, 0, 0, 0.2);
+    }
+    .knob-dial-shading {
+        background-image: conic-gradient(at 50% -50%,
+            rgba(255, 255, 255, 0.04) 0deg, transparent 45deg, rgba(0, 0, 0, 0.6) 120deg, rgba(0, 0, 0, 0.6) 170deg, rgba(255, 255, 255, 0.04) 210deg,
+        rgba(255, 255, 255, 0.16) 240deg 330deg, rgba(255, 255, 255, 0.04) 360deg);
+
+    }
+}
+
+.knob-dial-turnable {
+    z-index: 1;
+    transition: transform 50ms var(--default-transition-timing-function);
+}
+.knob-dial-top {
+    z-index: 2;
+    position: absolute;
+    top: -10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+
+    box-shadow: 
+        inset 1px 1px 2px -1px rgba(255, 255, 255, 0.12),
+        inset -1px -1px 2px -1px rgba(0, 0, 0, 0.8);
+}
+.knob-dial-top .indicator {
+    top: calc(50% - 1px);
+    left: calc(50% - 4px);
+    transform-origin: center;
+
+    box-shadow: 
+        inset -0.25px -0.25px 0.5px rgba(255, 255, 255, 0.6),
+        inset 0.25px 0.25px 0.5px -0.125px rgba(0, 0, 0, 0.4);
+    transition: transform 50ms var(--default-transition-timing-function);
+}
+.tick.minor {
+    width: 4px;
+    height: 1px;
+    top: calc(50% - 0.5px);
+    left: calc(50% - 2px);
+}
+.tick.major {
+    width: 8px;
+    height: 1px;
+    top: calc(50% - 0.5px);
+    left: calc(50% - 4px);
+}

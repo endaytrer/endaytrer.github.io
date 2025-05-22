@@ -17,18 +17,20 @@ STRLEN = . - .str
 .strlen_null:
     .store STRLEN + 1
 .section .text
-    mov a, .str
-    mov b, [.strlen_null]
+.global _start
+_start:
+    ldi r3, .str
+    ld r4, [.strlen_null]
 
-    dec b
+    dec r4
 loop:
-    mov x, [a]
-    inc a
+    ld r1, [r3]
+    inc r3
     scall SYSCALL_PUT_CHAR
     
-    dec b
-    bnz loop, b
-    mov x, 0
+    dec r4
+    bnz r4, loop
+    mov r1, zero
     scall SYSCALL_EXIT
 `
     },
@@ -39,14 +41,15 @@ SYSCALL_EXIT = 1
 SYSCALL_PUT_CHAR = 3
 
 .section .text
-__start:
+.global _start
+_start:
     nop
-    mov sp, 1023
-    mov x, 'Z' - 'A'
+    ldi sp, 1023
+    ldi r1, 'Z' - 'A'
     call print_int
 
 
-    mov x, 0
+    ldi r1, 0
     call exit
     
 
@@ -56,20 +59,20 @@ exit:
 print_int:
     push lr
 
-    bn print_int_endl, x // go to end if x < 0
-    mov y, 'Z'
-    push x
-    sub x, y, x
+    bn r1, print_int_endl // go to end if r1 < 0
+    ldi r2, 'Z'
+    push r1
+    sub r1, r2, r1
     scall SYSCALL_PUT_CHAR
-    pop x
-    dec x
+    pop r1
+    dec r1
     call print_int
 
     j epologue
 
 print_int_endl:
 
-    mov x, '\n'
+    ldi r1, '\n'
     scall SYSCALL_PUT_CHAR
 
 epologue:

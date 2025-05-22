@@ -9,6 +9,7 @@ interface BlogConfig {
   }[],
   social: {
     type: "facebook" | "instagram" | "twitter" | "whatsapp" | "telegram" | "github" | "rednote" | "leetcode" | "linkedin" | "mail",
+    name: string,
     url: string
   }[],
   links: {

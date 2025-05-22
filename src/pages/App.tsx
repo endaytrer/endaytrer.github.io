@@ -1,14 +1,18 @@
-import './index.css';
-import Crt from './components/Crt';
-import BlogList from './components/BlogList';
-import blogConfig from '../blog.config';
+import Crt from '../components/Crt';
+import BlogList from '../components/BlogList';
+import blogConfig from '../../blog.config';
 import { useEffect, useRef, useState } from 'react';
-import RadioGroup from './components/RadioGroup';
-import { Program, defaultPrograms } from './programs';
-import Speaker from './components/Speaker';
-import Editor from './components/Editor';
-import { assemble, machine_create, machine_step, machine_free } from './wasm/archblog';
-import InteractiveScreen from './components/InteractiveScreen';
+import RadioGroup from '../components/RadioGroup';
+import { Program, defaultPrograms } from '../programs';
+import Speaker from '../components/Speaker';
+import Editor from '../components/Editor';
+import { run_blocking, machine_create, machine_step, machine_free, assemble_executable } from '../wasm/archblog';
+import InteractiveScreen from '../components/InteractiveScreen';
+import Knob from '../components/Knob';
+import LcdDisplay from '../components/LcdDisplay';
+import { ESTIMATED_OVERHEAD } from '../utils';
+
+import icons from "../components/Icons";
 
 const navLinks = [
   {
@@ -48,8 +52,19 @@ function formatFileSize(bytes: number): string {
   
   return `${formattedSize} ${units[unitIndex]}`;
 }
+function getFrequencyText(clockSpeed: number | null): string {
+  if (clockSpeed === null) {
+    return "SYNC."
+  }
+  if (isNaN(clockSpeed)) {
+    return "SINGLE."
+  }
+  // this is an approximation of frequency
+  const frequency = Math.ceil(1024 / (clockSpeed + ESTIMATED_OVERHEAD));
+  return frequency.toString() + " HZ."
 
-const App = () => {
+}
+export default function App() {
   const [allPrograms, setAllPrograms] = useState(defaultPrograms);
   const [editorKeyEvent, setEditorKeyEvent] = useState<React.KeyboardEvent | null>(null);
   const crtRef = useRef<HTMLDivElement>(null);
@@ -71,6 +86,7 @@ const App = () => {
   const runningProgram = useRef<number>(null);
   const [runningMachine, setRunningMachine] = useState<number | null>(null);
   const [programCompilationError, setProgramCompilationError] = useState("");
+  const [clockSpeed, setClockSpeed] = useState<number | null>(0);
 
   const inputBuffer = document.querySelector("#input-buffer") as HTMLPreElement;
   const outputBuffer = document.querySelector("#output-buffer") as HTMLPreElement;
@@ -94,7 +110,7 @@ const App = () => {
   return (
     <main className="bg-teal-200 dark:bg-teal-950 text-teal-700 dark:text-teal-500 flex flex-col items-center">
       <header className="w-full min-h-svh flex flex-row items-center justify-center py-16 bg-teal-500 dark:bg-zinc-900 text-teal-900 dark:text-teal-500 rounded-b-sm shadow-lg">
-        <div className="flex flex-col lg:flex-row w-full max-w-7xl">
+        <div className="flex flex-col gap-4 lg:gap-0 lg:flex-row w-full max-w-7xl">
           <div className="w-full lg:w-2/3">
             <Crt ref={crtRef} onKeyDown={(e) => {
               if (machinePage === 1) {
@@ -213,9 +229,10 @@ const App = () => {
               }}
             </Crt>
           </div>
-          <div className="flex-1 m-5 lg:my-0 flex flex-col gap-8 lg:gap-24 items-center justify-between">
+          <div className="flex-1 m-5 lg:my-0 flex flex-col gap-2 items-start justify-between">
+            <div className="control-panel w-full flex flex-col gap-2">
 
-            <div className="w-full  rounded-md p-4 border-1 border-teal-600 dark:border-teal-950">
+            <div className="w-full rounded-md p-4 border-1 border-teal-600 dark:border-teal-950">
               <RadioGroup crtRef={crtRef} options={["START", "LOAD", "PROGRAM", "RUN"]} selection={machinePage} onChange={(v) => {
                 setMachinePage(v);
                 if (v ===  2 || v == 3) {
@@ -236,22 +253,28 @@ const App = () => {
                   const program = allPrograms[programSelection];
                   const source = program.program;
                   try {
-                      const bytes = assemble(source);
+                      const bytes = assemble_executable(program.name, source);
                       setProgramCompilationError("");
-                      const machine = machine_create(bytes);
-                      setRunningMachine(machine);
-                      inputBuffer.textContent = "";
-                      outputBuffer.textContent = "";
-                      const itvl = setInterval(() => {
-                        if (machine_step(machine)) {
-                          machine_free(machine);
-                          clearInterval(runningProgram.current as number);
-                          runningProgram.current = null;
-                          setRunningMachine(null);
-                          setMachinePage(-1);
-                        }
-                      }, 0);
-                      runningProgram.current = itvl;
+                      if (clockSpeed === null) {
+                        setTimeout(() => setMachinePage(-1), 150);
+                        runningProgram.current = null;
+                        run_blocking(1024, bytes);
+                      } else {
+                        const machine = machine_create(1024, bytes);
+                        setRunningMachine(machine);
+                        inputBuffer.textContent = "";
+                        outputBuffer.textContent = "";
+                        const itvl = setInterval(() => {
+                          if (machine_step(machine)) {
+                            machine_free(machine);
+                            clearInterval(runningProgram.current as number);
+                            runningProgram.current = null;
+                            setRunningMachine(null);
+                            setMachinePage(-1);
+                          }
+                        }, clockSpeed);
+                        runningProgram.current = itvl;
+                      }
                   } catch (e) {
                     setProgramCompilationError("Error: " + e);
                     setTimeout(() => setMachinePage(-1), 150);
@@ -260,7 +283,24 @@ const App = () => {
                 }
               }} />
             </div>
-            <div className="w-full h-full">
+            <div className="p-4">
+              <div className="flex flex-row gap-6 items-center justify-between">
+                <div className="flex">
+
+                  <Knob value={clockSpeed} onChange={(val) => {
+                    setClockSpeed(val)
+                  }}/>
+                  <div className="w-full">
+                  </div>
+                </div>
+                <div className="w-full">
+                <label><div className="font-pixel text-sm uppercase mb-1">Clock Frequency</div></label>
+                <LcdDisplay width={6} value={getFrequencyText(clockSpeed)}/>
+                </div>
+              </div>
+            </div>
+            </div>
+            <div className="hidden lg:block w-full h-full">
             <Speaker />
             </div>
           </div>
@@ -299,7 +339,14 @@ const App = () => {
           </div>
           
           <div className="w-full xl:px-4 col-start-2">
-            <h3 className="text-xl font-bold tracking-wide mt-10 mb-5 text-teal-900 dark:text-lime-50">Social Media</h3>
+            <h3 className="text-xl font-bold tracking-wide mt-10 mb-5 text-teal-900 dark:text-lime-50">Social Medias</h3>
+            <div className="flex flex-wrap gap-4 font-serif">
+
+              {blogConfig.social.map(({type, name, url}) => {
+                const Icon = icons[type];
+                return <a key={name} href={url} className="flex items-center gap-1"><Icon /></a>
+              })}
+            </div>
           </div>
 
           <div className="w-full xl:pl-4">
@@ -321,5 +368,3 @@ const App = () => {
     </main>
   );
 };
-
-export default App;

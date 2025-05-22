@@ -48,7 +48,7 @@
     display: block;
     width: calc(100% + 8px);
     height: calc(100% + 8px);
-    top: -4px;
+    top: -6px;
     left: -4px;
 }
 .layer.display {

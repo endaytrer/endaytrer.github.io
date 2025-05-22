@@ -15,7 +15,7 @@ function Crt({ ref, children, onKeyDown }: { ref: React.RefObject<HTMLDivElement
         mx-5
         text-xl lg:text-2xl min-h-72 lg:min-h-96
         bg-emerald-700 dark:bg-emerald-800 rounded-2xl
-        border-8 border-solid border-b-teal-400 dark:border-b-teal-950 border-x-teal-600 dark:border-x-zinc-900 border-t-teal-700 dark:border-t-zinc-950
+        border-8 border-b-4 border-t-12 border-solid border-b-teal-400 dark:border-b-teal-950 border-x-teal-600 dark:border-x-zinc-900 border-t-teal-700 dark:border-t-zinc-950
         relative
         outline-0
     ">

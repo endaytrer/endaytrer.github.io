@@ -1,0 +1,1 @@
+export const ESTIMATED_OVERHEAD = 8; // in ms
