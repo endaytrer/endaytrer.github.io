@@ -1,105 +1,134 @@
-use std::{fs, io::{BufRead, BufReader}, path::Path, time::SystemTime};
+use std::{error::Error, fmt::Display, fs, io::{BufRead, BufReader}, path::Path, time::SystemTime};
 
-use markdown_extension::{HINT_REGEX, LICENSE_REGEX, PASSWORD_REGEX, PREVIEW_REGEX, TAG_REGEX, TITLE_REGEX};
-use serde::{Serialize, Deserialize};
+use license::License;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 pub mod manifest;
+mod license;
+
+pub(super) mod password_serde {
+
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(pwd: &Option<String>, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bool(pwd.is_some())
+    }
+    pub fn deserialize<'a, D: Deserializer<'a>>(s: D) -> Result<Option<String>, D::Error> {
+
+        struct BoolVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for BoolVisitor {
+            type Value = Option<String>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a boolean representing password presence or a string")
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if v {
+                    Ok(Some(String::new()))
+                } else {
+                    Ok(None)
+                }
+            }
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Some(value.to_string()))
+            }
+        }
+
+        s.deserialize_bool(BoolVisitor)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Language(String);
+
+impl Default for Language {
+    fn default() -> Self {
+        Self("en-US".to_string())
+    }
+}
+impl Display for Language {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Blog {
-    // id is represented by manifest key
-    is_secret: bool,
-    hint: Option<String>,
-    title: String,
-    license: Option<String>,
-    tags: Vec<String>,
+    #[serde(default, with = "password_serde")]
+    password: Option<String>,
+    pub hint: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub language: Language,
+    pub license: Option<License>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     #[serde(with = "time::serde::rfc3339")]
     modified: OffsetDateTime,
-    preview: String,
 }
-pub(super) mod markdown_extension {
 
-    use once_cell::sync::Lazy;
-    use regex::Regex;
-    pub static TITLE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^#\s(.*?)$").unwrap());
-    pub static LICENSE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^>\s+License:\s*(.*?)$").unwrap());
-    pub static PASSWORD_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^>\s+Password:\s*(.*?)$").unwrap());
-    pub static HINT_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^>\s+Hint:\s*(.*?)$").unwrap());
-    pub static TAG_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^>\s+Tags:\s*([^\s][^,]*(,\s*[^\s][^,]*)*),?$").unwrap());
-    pub static PREVIEW_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(|[^#>].*?)$").unwrap());
-}
 impl Blog {
-    const SCAN_LINES: usize = 25;
-    const MAX_PREVIEW_LEN: usize = 5;
-
-    pub fn parse(path: impl AsRef<Path>, filename: &str, modified: SystemTime) -> Result<Self, std::io::Error> {
+    pub fn parse(path: impl AsRef<Path>, modified: SystemTime) -> Result<Self, Box<dyn Error>> {
 
         let file = fs::File::open(path)?;
         let file_reader = BufReader::new(file);
-        let first_ten_lines = file_reader.lines().take(Self::SCAN_LINES);
-        let mut title = None;
-        let mut license = None;
-        let mut password = None;
-        let mut hint = None;
-        let mut tags = None;
-        let mut preview = vec![];
-
-        for line in first_ten_lines {
+        let mut file_metadata = String::new();
+        let mut in_frontmatter = false;
+        for line in file_reader.lines() {
             let line = line?;
-            if title.is_none() {
-                if let Some(matches) = TITLE_REGEX.captures(&line) {
-                    title = Some(matches[1].to_string());
+            if line.trim() == "---" {
+                if in_frontmatter {
+                    let modified = Into::<OffsetDateTime>::into(modified);
+                    #[derive(Serialize)]
+                    struct Modified {
+                        #[serde(with = "time::serde::rfc3339")]
+                        modified: OffsetDateTime,
+                    }
+                    let m = Modified {
+                        modified
+                    };
+                    file_metadata.push_str(&format!("{}\n", toml::ser::to_string(&m).unwrap()));
+                    let t = toml::from_str::<Blog>(&file_metadata)?;
+                    return Ok(t)
+                } else {
+                    in_frontmatter = true;
                 }
-            }
-            if license.is_none() {
-                if let Some(matches) = LICENSE_REGEX.captures(&line) {
-                    license = Some(matches[1].to_string());
-                }
-            }
-            if password.is_none() {
-                if let Some(matches) = PASSWORD_REGEX.captures(&line) {
-                    password = Some(matches[1].to_string());
-                }
-            }
-            if hint.is_none() {
-                if let Some(matches) = HINT_REGEX.captures(&line) {
-                    hint = Some(matches[1].to_string());
-                }
-            }
-            if tags.is_none() {
-                if let Some(matches) = TAG_REGEX.captures(&line) {
-                    tags = Some(matches[1].split(",").map(|tag| tag.trim().to_string()).collect());
-                }
-            }
-            if preview.len() < Self::MAX_PREVIEW_LEN {
-
-                if let Some(matches) = PREVIEW_REGEX.captures(&line) {
-                    preview.push(matches[0].to_string())
-                }
+            } else {
+                file_metadata.push_str(&line);
+                file_metadata.push('\n');
             }
         }
-        let is_secret = password.is_some();
-        let title = title.unwrap_or(filename.to_string());
-        let tags = tags.unwrap_or_default();
-
-        Ok(Self { is_secret, hint, title, license, tags, modified: modified.into(), preview: if is_secret {
-            String::new()
-        } else {
-            preview.join("\n").trim().to_string()
-        } })
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "No frontmatter found in blog file",
+        )));
     }
-    pub fn update(&mut self, path: impl AsRef<Path>, filename: &str, last_modified: SystemTime) -> Result<(), std::io::Error> {
-
-        if last_modified <= self.modified {
-            return Ok(())
+    /// Return if the blog is updated.
+    pub fn update(&mut self, path: impl AsRef<Path>, last_modified: SystemTime, regenerate: bool) -> Result<bool, Box<dyn Error>> {
+        if !regenerate && last_modified <= self.modified {
+            return Ok(false)
         }
-        *self = Self::parse(path, filename, last_modified)?;
-        Ok(())
+        *self = Self::parse(path, last_modified)?;
+        Ok(true)
     }
     pub fn get_tags(&self) -> Vec<String> {
         self.tags.clone()
-    } 
-    pub fn is_secret(&self) -> bool {
-        self.is_secret
+    }
+    pub fn get_password(&self) -> Option<&String> {
+        self.password.as_ref()
+    }
+    pub fn get_license(&self) -> Option<&License> {
+        self.license.as_ref()
+    }
+    pub fn get_copyright_year(&self) -> i32 {
+        self.modified.year()
     }
 }

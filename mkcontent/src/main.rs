@@ -4,11 +4,17 @@ pub(crate) mod site;
 
 pub(crate) mod crypto;
 
+pub(crate) mod render;
+
 
 use blog::{manifest::BlogManifest, Blog};
 use clap::Parser;
+use render::{save_html, save_html_secret};
 use site::manifest::SiteManifest;
-use std::{fs, path::Path};
+use std::process;
+use std::{io, fs, path::Path};
+use std::io::{stdout, Write};
+use base64::prelude::*;
 
 /// Load blog content to static
 #[derive(Parser)]
@@ -19,54 +25,208 @@ struct Args {
 
     #[arg(short, long, default_value_t = String::from("../dist"))]
     output: String,
+
+    #[arg(short, long, default_value_t = String::from("Daniel Gu"))]
+    copyright_name: String,
+    
+    /// Regenerate everything
+    #[arg(short, long)]
+    regenerate: bool,
+
+    /// Do not generate archive.
+    #[arg(long)]
+    no_archive: bool,
+    
+    /// Do not encrypt secret blogs.
+    #[arg(long)]
+    no_encrypt: bool,
 }
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
 fn main() {
-    let Args { input, output } = Args::parse();
+    let Args { input, output, copyright_name, regenerate, no_archive, no_encrypt } = Args::parse();
+    let mut stdout = stdout().lock();
+
+    // if regenerate {
+    //     let success = process::Command::new("npm")
+    //         .arg("run")
+    //         .arg("build")
+    //         .status()
+    //         .unwrap()
+    //         .success();
+    //     if !success {
+    //         panic!("cannot build")
+    //     }
+    // }
     
     let blogs_path = Path::new(&input).join("blogs");
     let sites_path = Path::new(&input).join("sites");
-    let dst_blogs_path = Path::new(&output).join("blogs");
-    let dst_sites_path = Path::new(&output).join("sites");
-    let blog_manifest_path = Path::new(&output).join("api").join("blog-manifest");
-    let site_manifest_path = Path::new(&output).join("api").join("site-manifest");
+    let output_path = Path::new(&output);
+    let dst_blogs_path = output_path.join("blogs");
+    let dst_sites_path = output_path.join("sites");
+    let apis_path = output_path.join("api");
+    let blog_manifest_path = apis_path.join("blog-manifest.json");
+    let site_manifest_path = apis_path.join("site-manifest.json");
 
+    println!("Creating required directories...");
+    fs::create_dir_all(&blogs_path).unwrap();
+    fs::create_dir_all(&sites_path).unwrap();
+    fs::create_dir_all(&dst_blogs_path).unwrap();
+    fs::create_dir_all(&dst_sites_path).unwrap();
+    fs::create_dir_all(&apis_path).unwrap();
+    // generating basic css
+    if regenerate {
+        print!("Generating CSS and JS...");
+        let mut dst_blog_css = fs::File::create(dst_blogs_path.join("blog.css")).unwrap();
+        dst_blog_css.write(include_bytes!("template/blog.css")).unwrap();
+
+        let mut decrypt_js = fs::File::create(dst_blogs_path.join("decrypt.js")).unwrap();
+        decrypt_js.write(include_bytes!("template/decrypt.js")).unwrap();
+        println!("done.");
+
+        let mut script_js = fs::File::create(dst_blogs_path.join("script.js")).unwrap();
+        script_js.write(include_bytes!("template/script.js")).unwrap();
+        println!("done.");
+    }
+    print!("Reading previous manifests...");
+    stdout.flush().unwrap();
     let mut blog_manifest = fs::File::open(&blog_manifest_path).ok().and_then(|s| {
         serde_json::from_reader::<fs::File, BlogManifest>(s).ok()
-    }).unwrap_or_default();
+    }).unwrap();
     
     let mut site_manifest = fs::File::open(&site_manifest_path).ok().and_then(|s| {
         serde_json::from_reader::<fs::File, SiteManifest>(s).ok()
-    }).unwrap_or_default();
+    }).unwrap();
+    println!("done.");
+
+    let mut updated_blogs = vec![];
+    
 
     for blog in fs::read_dir(&blogs_path).unwrap() {
         let blog_entry = blog.unwrap();
         let id = blog_entry.file_name().into_string().unwrap();
+
         if !id.ends_with(".md") {
             continue
         }
+        print!("Reading blog manifest {id}...");
+        
+        stdout.flush().unwrap();
         let last_modified = blog_entry.metadata().unwrap().modified().unwrap();
         let res = match blog_manifest.blogs.entry(id.clone()) {
-            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => occupied_entry.get_mut().update(blog_entry.path(), &id, last_modified),
-            std::collections::hash_map::Entry::Vacant(vacant_entry) => Blog::parse(blog_entry.path(), &id, last_modified)
-                .and_then(|blog| { vacant_entry.insert(blog); Ok(()) }),
+            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => occupied_entry.get_mut().update(blog_entry.path(), last_modified, regenerate),
+            std::collections::hash_map::Entry::Vacant(vacant_entry) => Blog::parse(blog_entry.path(), last_modified)
+                .and_then(|blog| { vacant_entry.insert(blog); Ok(true) }),
         };
-        if let Err(e) = res {
-            eprintln!("{}", e);
+        match res {
+            Ok(true) => { updated_blogs.push(id); },
+            Ok(false) => {} 
+            Err(e) =>  {
+                eprintln!("Error happended: {}\n. Skipped.", e);
+                continue
+            }
         }
+        println!("done.");
     }
+    println!("All blog manifest are read. Total blogs: {}, needs update: {}", blog_manifest.blogs.len(), updated_blogs.len());
+
+    print!("Writing blog manifest to file...");
+    stdout.flush().unwrap();
+    serde_json::to_writer(fs::File::create(&blog_manifest_path).unwrap(), &blog_manifest).unwrap();
+    println!("done.");
+
     // calculate tags, also copy files
-    for (id, blog) in &blog_manifest.blogs {
+    for id in updated_blogs {
+        let blog = blog_manifest.blogs.get(&id).unwrap();
+
+        let archive_name = id.strip_suffix(".md").unwrap().to_string();
+
+        let assets = archive_name.clone() + ".assets";
+        let html = archive_name.clone() + ".html";
+        let archive_name_zipped = archive_name.clone() + ".zip";
+
+        print!("Copying blog and assets: {}...", id);
+        stdout.flush().unwrap();
         blog_manifest.tags.extend(blog.get_tags());
-        if !blog.is_secret() {
-            fs::copy(blogs_path.join(id), dst_blogs_path.join(id)).unwrap();
-            let mut assets = id.strip_suffix(".md").unwrap().to_string();
-            assets.push_str(".assets");
-            let _ = fs::copy(blogs_path.join(&assets), dst_blogs_path.join(&assets));
-        } else {
+
+        let archive_path = dst_blogs_path.join(&archive_name);
+
+        // don't care with removing results.
+        let _ = fs::remove_file(dst_blogs_path.join(&id));
+        let _ = fs::remove_file(dst_blogs_path.join(&archive_name_zipped));
+        let _ = fs::remove_dir_all(output_path.join(&assets));
+        let _ = fs::remove_dir_all(&archive_path);
+
+        if fs::exists(blogs_path.join(&assets)).unwrap() {
+            copy_dir_all(blogs_path.join(&assets), dst_blogs_path.join(&assets)).unwrap();
         }
+
+        let blog_content = fs::read_to_string(blogs_path.join(&id)).unwrap();
+        let rendered_blog_content = render::render(&blog_content);
+
+        let mut dst_blog = fs::File::create(dst_blogs_path.join(&html)).unwrap();
+
+        if let Some(password) = blog.get_password().and_then(|pwd| {
+            if no_encrypt {
+                None
+            } else {
+                Some(pwd)
+            }
+        }) {
+            print!("\n    Blog {id} needs encryption. encrypting...");
+            stdout.flush().unwrap();
+            
+            let encrypted = crypto::encrypt_data(&rendered_blog_content, password);
+            let encoded = BASE64_STANDARD.encode(encrypted);
+            dst_blog.write(save_html_secret(blog, encoded).as_bytes()).unwrap();
+            println!("done.");
+        } else {
+            dst_blog.write(save_html(blog, rendered_blog_content).as_bytes()).unwrap();
+            if let Some(license) = blog.get_license() {
+                if license.is_permissive() && !no_archive {
+                    // allow downloading and archive
+                    print!("\n    Creating archive for blog {id} due to permissive license...");
+                    stdout.flush().unwrap();
+                    fs::create_dir_all(&archive_path).unwrap();
+                    
+                    fs::copy(blogs_path.join(&id), archive_path.join(&id)).unwrap();
+                    
+                    // create license
+
+                    let mut archive_license = fs::File::create(archive_path.join("LICENSE.txt")).unwrap();
+                    archive_license.write(license.license_text(&id, blog.get_copyright_year(), &copyright_name).as_bytes()).unwrap();
+
+                    let success = process::Command::new("zip")
+                        .current_dir(&dst_blogs_path)
+                        .arg("-r")
+                        .arg("-m")
+                        .arg(archive_name_zipped)
+                        .arg(archive_name)
+                        .stdout(process::Stdio::null())
+                        .status().unwrap().success();
+                    if !success {
+                        panic!("failed to create archive")
+                    }
+                    println!("done.");
+                }
+            }
+        }
+        println!("done.");
     }
     
-    serde_json::to_writer(fs::File::create(&blog_manifest_path).unwrap(), &blog_manifest).unwrap();
     
     for site in fs::read_dir(sites_path).unwrap() {
         let site_entry = site.unwrap();

@@ -1,0 +1,297 @@
+body {
+    --color-lime-50: oklch(98.6% 0.031 120.757);
+    --color-teal-200: oklch(91% 0.096 180.426);
+    --color-teal-300: oklch(85.5% 0.138 181.071);
+    --color-teal-400: oklch(77.7% 0.152 181.912);
+    --color-teal-600: oklch(60% 0.118 184.704);
+    --color-teal-800: oklch(43.7% 0.078 188.216);
+    --color-teal-900: oklch(38.6% 0.063 188.416);
+    --color-teal-950: oklch(27.7% 0.046 192.524);
+    --radius-sm: 0.25rem;
+    --color-body-bg: var(--color-teal-200);
+
+    margin: 0;
+    font-family: 'Noto Sans SC', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: var(--color-body-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        --color-body-bg: var(--color-teal-950);
+    }
+}
+#plaintext {
+    width: 100%;
+    min-height: calc(100svh - 8.3rem);
+    position: relative;
+}
+#ciphertext {
+    width: 100%;
+    padding: 10px !important;
+    position: absolute;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-size: 0.8em;
+    color: var(--color-weak);
+    margin: 0;
+    max-height: calc(100svh - 8.3rem);
+    overflow: hidden;
+    border: none !important;
+    filter: blur(5px);
+}
+#ciphertext::after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    background-image: linear-gradient(transparent, var(--color-body-bg));
+}
+#password-form {
+    margin: 1rem auto;
+}
+.cipher-float {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    z-index: 10;
+    margin-top: 10rem;
+}
+.cipher-dialog {
+    width: 320px;
+}
+#password-form label {
+    display: block;
+}
+#blog input {
+    display: inline-block;
+    border: none;
+    border-radius: 0;
+    padding: 0.1em 0.5em;
+    margin: 0.5rem 0;
+    font-size: 1.1em;
+    font-family: inherit;
+    background-color: inherit;
+    color: inherit;
+    outline: none;
+    border-color: var(--color-primary);
+    background-color: rgba(255, 255, 255, 0.02);
+    border-bottom: 2px solid var(--color-weak);
+    transition: border-color 150ms ease-out;
+}
+#blog input:focus {
+    border-color: var(--color-secondary);
+}
+#blog input[type="submit"] {
+    background-color: var(--color-bg);
+    border-bottom: 2px solid var(--color-bg);
+    font-size: 0.9em;
+    padding: 0.2em 0.5em;
+    font-family: "Noto Sans SC";
+    color: inherit;
+    cursor: pointer;
+}
+#blog * {
+    box-sizing: border-box;
+}
+.blog-container {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#blog {
+    margin: 1rem;
+    font-size: 1.1rem;
+    width: calc(100% - 2rem);
+    font-weight: 300;
+    max-width: 768px;
+    overflow: hidden;
+    font-family: "Noto Serif", "Noto Serif SC";
+    font-synthesis: none;
+    --color-primary: var(--color-teal-900);
+    --color-secondary: var(--color-teal-800);
+    --color-weak: var(--color-teal-600);
+    --color-line: var(--color-teal-300);
+    --color-bg: var(--color-teal-200);
+    color: var(--color-secondary);
+}
+
+@media screen and (min-width: 768px) {
+    #blog {
+        font-size: 1rem;
+    }
+}
+#blog:lang(zh, kr, jp) {
+    font-weight: 400;
+}
+@media (prefers-color-scheme: dark) {
+    #blog {
+        --color-primary: var(--color-lime-50);
+        --color-secondary: var(--color-teal-400);
+        --color-weak: var(--color-teal-600);
+        --color-line: var(--color-teal-900);
+        --color-bg: var(--color-teal-900);
+    }
+}
+
+#blog h1 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-line);
+    color: var(--color-primary);
+    font-family: "Noto Sans SC";
+}
+#blog h2 {
+    font-size: 1.4em;
+    font-weight: bold;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    color: var(--color-primary);
+    font-family: "Noto Sans SC";
+}
+#blog h3 {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-primary);
+    font-family: "Noto Sans SC";
+}
+
+#blog h4 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin-top: 1rem;
+    margin-bottom: 0.2rem;
+    color: var(--color-primary);
+    /* font-family: "Noto Sans SC"; */
+}
+#blog h5 {
+    font-size: 1.1em;
+    font-weight: 400;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+    color: var(--color-secondary);
+    /* font-family: "Noto Sans SC"; */
+}
+#blog h6 {
+    font-size: inherit;
+    font-weight: 500;
+    margin: 0;
+}
+
+#blog blockquote {
+    font-weight: 400;
+    width: calc(100% - 2rem);
+    font-family: "Noto Serif Display", "Klee One";
+    font-style: italic;
+    font-size: 1.1em;
+    padding: 1rem 0;
+    margin: 1rem auto;
+    color: var(--color-weak);
+}
+
+#blog strong {
+    font-weight: 700;
+}
+#blog img {
+    display: block;
+    font-size: inherit;
+    margin: 2rem auto;
+    max-width: 100%;
+    max-height: 100svh;
+    background-size: contain;
+}
+@media screen and (min-width: 768px) {
+    #blog img {
+        max-height: 60svh;
+    }
+}
+
+#blog blockquote p {
+    margin: 0.2rem 0;
+}
+
+#blog p {
+    margin: 1rem 0;
+}
+#blog:lang(zh, kr, jp) p {
+    text-align: justify;   
+}
+#blog table {
+    margin: auto;
+    min-width: 100%;
+    overflow-x: scroll;
+    border-collapse: collapse;
+}
+#blog table thead {
+    border-top: 2px solid var(--color-weak);
+    border-bottom: 1px solid var(--color-weak);
+}
+#blog table tbody {
+    border-bottom: 2px solid var(--color-weak);
+}
+#blog table th,
+#blog table td {
+    text-align: start;
+    padding: 0.2rem 0.5rem;
+}
+#blog code {
+    font-family: "Noto Sans Mono";
+    display: inline-block;
+    padding: 0 0.1rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+}
+#blog code.language-math {
+    font-family: "Noto Serif";
+    font-style: italic;
+}
+#blog code.math-inline {
+    border: none;
+    border-radius: 0;
+}
+
+#blog pre code {
+    width: 100%;
+    border: 1px solid var(--color-line);
+    margin: 0.5rem 0;
+    padding: 1rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.9em;
+    overflow: hidden;
+}
+#blog pre code.math-display {
+    border: none;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+}
+#blog ul {
+    list-style-type: circle;
+}
+#blog ol {
+    list-style-type: decimal;
+}
+#blog ul,
+#blog ol {
+    padding-left: 2em;
+}
+#blog li {
+    list-style-position: outside;
+    margin-bottom: 0.5rem;
+}
+#blog a {
+    text-decoration: 0.5px underline;
+    color: unset;
+}

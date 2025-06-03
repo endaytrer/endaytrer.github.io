@@ -11,10 +11,4 @@ export default defineConfig({
     title: `${blogConfig.realName}'s Blog`,
     template: "./static/index.html"
   },
-  output: {
-    copy: [
-      { from: './static/blogs', to: 'blogs' },
-      { from: './static/api', to: 'api' },
-    ]
-  }
 });
