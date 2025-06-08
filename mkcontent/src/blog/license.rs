@@ -40,7 +40,7 @@ impl License {
             License::Cc01_0 => true,
         }
     }
-    fn canonical_name(&self) -> &'static str {
+    pub fn canonical_name(&self) -> &'static str {
         match self {
             License::CcBy4_0 => "CC BY 4.0",
             License::CcByNc4_0 => "CC BY-NC 4.0",
@@ -51,15 +51,15 @@ impl License {
             License::Cc01_0 => "CC0 1.0",
         }
     }
-    fn url(&self) -> &'static str {
+    pub fn url(&self) -> &'static str {
         match self {
-            License::CcBy4_0 => "https://creativecommons.org/licenses/by/4.0/ ",
-            License::CcByNc4_0 => "https://creativecommons.org/licenses/by-nc/4.0/ ",
-            License::CcByNcNd4_0 => "https://creativecommons.org/licenses/by-nc-nd/4.0/ ",
-            License::CcByNcSa4_0 => "https://creativecommons.org/licenses/by-nc-sa/4.0/ ",
-            License::CcByNd4_0 =>  "https://creativecommons.org/licenses/by-nd/4.0/ ",
-            License::CcBySa4_0 => "https://creativecommons.org/licenses/by-sa/4.0/ ",
-            License::Cc01_0 => "CC0 1.0",
+            License::CcBy4_0 => "https://creativecommons.org/licenses/by/4.0/",
+            License::CcByNc4_0 => "https://creativecommons.org/licenses/by-nc/4.0/",
+            License::CcByNcNd4_0 => "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            License::CcByNcSa4_0 => "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            License::CcByNd4_0 =>  "https://creativecommons.org/licenses/by-nd/4.0/",
+            License::CcBySa4_0 => "https://creativecommons.org/licenses/by-sa/4.0/",
+            License::Cc01_0 => "https://creativecommons.org/publicdomain/zero/1.0/",
         }
     }
     pub fn license_text(&self, title: &str, year: i32, creator: &str) -> String {

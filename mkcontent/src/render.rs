@@ -1,8 +1,12 @@
+use handlebars::Handlebars;
 use quick_xml::events::{Event, BytesText};
 use quick_xml::Writer;
+use time::format_description::well_known::Rfc3339;
+use std::fs;
 use std::io::Cursor;
 use katex::Opts;
 
+use crate::blog::license::License;
 use crate::blog::Blog;
 
 
@@ -98,14 +102,48 @@ pub fn render(md: &str) -> String {
     String::from_utf8(result).unwrap()
 }
 
-pub fn save_html(metadata: &Blog, content: String) -> String {
-    format!(include_str!("template/blog.html"), title=metadata.title, lang=metadata.language, content=content)
+pub fn save_html(metadata: &Blog, content: String, copyright_name: &str) -> String {
+    let reg = Handlebars::new();
+    // read template from file
+    let template_str = fs::read_to_string("template/blog.html").unwrap();
+    let date_str = metadata.modified.format(&Rfc3339).unwrap();
+    reg.render_template(&template_str, &serde_json::json!({
+        "title": metadata.title,
+        "date": date_str,
+        "lang": metadata.language,
+        "content": content,
+        "tags": metadata.tags,
+        "copyright_year": metadata.get_copyright_year(),
+        "copyright_name": copyright_name,
+        "license": metadata.license.as_ref().map(|license| {
+            serde_json::json!({
+                "name": license.canonical_name(),
+                "url": license.url(),
+                "zero": license == &License::Cc01_0,
+                "by": license != &License::Cc01_0,
+                "nc": license == &License::CcByNc4_0 ||
+                    license == &License::CcByNcNd4_0 ||
+                    license == &License::CcByNcSa4_0,
+                "nd": license == &License::CcByNcNd4_0 ||
+                    license == &License::CcByNd4_0,
+                "sa": license == &License::CcByNcSa4_0 ||
+                    license == &License::CcBySa4_0,
+            })
+        })
+    })).unwrap()
 }
-pub fn save_html_secret(metadata: &Blog, content: String) -> String {
-    let secret_content = format!(include_str!("template/secret.html"), hint=metadata.hint.as_ref().map(|h| {
-        let mut ans = "Hint: ".to_string();
-        ans.push_str(h);
-        ans
-    }).unwrap_or(String::new()), content=content);
-    format!(include_str!("template/blog.html"), title=metadata.title, lang=metadata.language, content=secret_content)
+pub fn save_html_secret(metadata: &Blog, content: String, copyright_name: &str) -> String {
+
+    let reg = Handlebars::new();
+    // read template from file
+    let template_str = fs::read_to_string("template/secret.html").unwrap();
+    let secret_content = reg.render_template(&template_str, &serde_json::json!({
+        "hint": metadata.hint.as_ref().map(|h| {
+            let mut ans = "Hint: ".to_string();
+            ans.push_str(h);
+            ans
+        }).unwrap_or(String::new()),
+        "content": content,
+    })).unwrap();
+    save_html(metadata, secret_content, copyright_name)
 }

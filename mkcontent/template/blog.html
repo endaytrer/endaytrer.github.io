@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>{{title}}</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="{{lang}}">
+            <h1>{{title}}</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="{{date}}"></time></div>
+                {{#if tags}}
+                    <div class="tag-container"><i class="fa-solid fa-tags"></i>
+                        {{#each tags}}
+                            <a class="tag" href="/blogs?tags={{this}}"><b>#</b> {{this}}</a>
+                        {{/each}}
+                    </div>
+                {{/if}}
+                {{#if license}}
+                    <a class="license" href="{{license.url}}">
+                        <i class="fa-brands fa-creative-commons"></i>
+                        {{#if license.zero}}
+                            <i class="fa-brands fa-creative-commons-zero"></i>
+                        {{/if}}
+                        {{#if license.by}}
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                        {{/if}}
+                        {{#if license.nc}}
+                            <i class="fa-brands fa-creative-commons-nc"></i>
+                        {{/if}}
+                        {{#if license.nd}}
+                            <i class="fa-brands fa-creative-commons-nd"></i>
+                        {{/if}}
+                        {{#if license.sa}}
+                            <i class="fa-brands fa-creative-commons-sa"></i>
+                        {{/if}}
+                        {{license.name}}
+                    </a>
+                {{else}}
+                    <span>&copy; {{copyright_year}} by {{copyright_name}}. All rights reserved.</span>
+                {{/if}}
+            </div>
+            {{{content}}}
+            <br />
+            <div class="copyright">
+                {{#if license}}
+                    <a href="#">{{title}}</a>
+                    {{#if license.by}}
+                        &copy; {{copyright_year}}
+                    {{/if}}
+                    by {{copyright_name}}
+                    {{#if license.by}}
+                        is licensed under
+                    {{else}}
+                        is marked
+                    {{/if}}
+                    <a href="{{license.url}}">{{license.name}}
+                    {{#if license.zero}}
+                        <i class="fa-brands fa-creative-commons-zero"></i>
+                    {{/if}}
+                    {{#if license.by}}
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                    {{/if}}
+                    {{#if license.nc}}
+                        <i class="fa-brands fa-creative-commons-nc"></i>
+                    {{/if}}
+                    {{#if license.nd}}
+                        <i class="fa-brands fa-creative-commons-nd"></i>
+                    {{/if}}
+                    {{#if license.sa}}
+                        <i class="fa-brands fa-creative-commons-sa"></i>
+                    {{/if}}
+                    </a>
+                    .
+                {{else}}
+                    <span><a href="#">{{title}}</a> &copy; {{copyright_year}} by {{copyright_name}}. All rights reserved.</span>
+                {{/if}}
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

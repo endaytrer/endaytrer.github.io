@@ -4,7 +4,7 @@ use license::License;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 pub mod manifest;
-mod license;
+pub mod license;
 
 pub(super) mod password_serde {
 
@@ -72,7 +72,7 @@ pub struct Blog {
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(with = "time::serde::rfc3339")]
-    modified: OffsetDateTime,
+    pub modified: OffsetDateTime,
 }
 
 impl Blog {

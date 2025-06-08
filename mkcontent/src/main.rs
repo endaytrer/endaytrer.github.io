@@ -87,29 +87,32 @@ fn main() {
     fs::create_dir_all(&dst_blogs_path).unwrap();
     fs::create_dir_all(&dst_sites_path).unwrap();
     fs::create_dir_all(&apis_path).unwrap();
-    // generating basic css
-    if regenerate {
-        print!("Generating CSS and JS...");
-        let mut dst_blog_css = fs::File::create(dst_blogs_path.join("blog.css")).unwrap();
-        dst_blog_css.write(include_bytes!("template/blog.css")).unwrap();
 
-        let mut decrypt_js = fs::File::create(dst_blogs_path.join("decrypt.js")).unwrap();
-        decrypt_js.write(include_bytes!("template/decrypt.js")).unwrap();
-        println!("done.");
+    // generating basic css and js
 
-        let mut script_js = fs::File::create(dst_blogs_path.join("script.js")).unwrap();
-        script_js.write(include_bytes!("template/script.js")).unwrap();
-        println!("done.");
+    print!("Generating CSS and JS...");
+    let blog_css_path = dst_blogs_path.join("blog.css");
+    let blog_decrypt_path = dst_blogs_path.join("decrypt.js");
+    let blog_script_path = dst_blogs_path.join("script.js");
+    if regenerate || !fs::exists(blog_css_path).unwrap() {
+        fs::copy("template/blog.css", dst_blogs_path.join("blog.css")).unwrap();
     }
+    if regenerate || !fs::exists(blog_decrypt_path).unwrap() {
+        fs::copy("template/decrypt.js", dst_blogs_path.join("decrypt.js")).unwrap();
+    }
+    if regenerate || !fs::exists(blog_script_path).unwrap() {
+        fs::copy("template/script.js", dst_blogs_path.join("script.js")).unwrap();
+    }
+    println!("done.");
     print!("Reading previous manifests...");
     stdout.flush().unwrap();
     let mut blog_manifest = fs::File::open(&blog_manifest_path).ok().and_then(|s| {
         serde_json::from_reader::<fs::File, BlogManifest>(s).ok()
-    }).unwrap();
+    }).unwrap_or_default();
     
     let mut site_manifest = fs::File::open(&site_manifest_path).ok().and_then(|s| {
         serde_json::from_reader::<fs::File, SiteManifest>(s).ok()
-    }).unwrap();
+    }).unwrap_or_default();
     println!("done.");
 
     let mut updated_blogs = vec![];
@@ -191,10 +194,10 @@ fn main() {
             
             let encrypted = crypto::encrypt_data(&rendered_blog_content, password);
             let encoded = BASE64_STANDARD.encode(encrypted);
-            dst_blog.write(save_html_secret(blog, encoded).as_bytes()).unwrap();
+            dst_blog.write(save_html_secret(blog, encoded, &copyright_name).as_bytes()).unwrap();
             println!("done.");
         } else {
-            dst_blog.write(save_html(blog, rendered_blog_content).as_bytes()).unwrap();
+            dst_blog.write(save_html(blog, rendered_blog_content, &copyright_name).as_bytes()).unwrap();
             if let Some(license) = blog.get_license() {
                 if license.is_permissive() && !no_archive {
                     // allow downloading and archive
