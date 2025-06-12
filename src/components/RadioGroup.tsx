@@ -6,7 +6,7 @@ export default function RadioGroup({crtRef, options, selection, onChange}: {crtR
             <button disabled={ selection === i } key={i} onClick={() => {
                 crtRef.current?.focus()
                 onChange(i)
-            }} className="bg-teal-600 rounded-sm w-full dark:bg-zinc-800">
+            }} className="bg-teal-600 rounded-sm w-full dark:bg-zinc-900">
                 <div className="button-face bg-teal-500 dark:bg-teal-950">
                     <div className="button-face-texture"></div>
                 </div>

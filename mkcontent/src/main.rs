@@ -11,6 +11,7 @@ use blog::{manifest::BlogManifest, Blog};
 use clap::Parser;
 use render::{save_html, save_html_secret};
 use site::manifest::SiteManifest;
+use std::collections::HashSet;
 use std::process;
 use std::{io, fs, path::Path};
 use std::io::{stdout, Write};
@@ -128,15 +129,18 @@ fn main() {
         print!("Reading blog manifest {id}...");
         
         stdout.flush().unwrap();
-        let last_modified = blog_entry.metadata().unwrap().modified().unwrap();
+        let blog_metadata = blog_entry.metadata().unwrap();
+        let os_created = blog_metadata.created().unwrap();
+        let os_modified = blog_metadata.modified().unwrap();
+
         let res = match blog_manifest.blogs.entry(id.clone()) {
-            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => occupied_entry.get_mut().update(blog_entry.path(), last_modified, regenerate),
-            std::collections::hash_map::Entry::Vacant(vacant_entry) => Blog::parse(blog_entry.path(), last_modified)
-                .and_then(|blog| { vacant_entry.insert(blog); Ok(true) }),
+            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => occupied_entry.get_mut().update(blog_entry.path(), os_created, os_modified, regenerate),
+            std::collections::hash_map::Entry::Vacant(vacant_entry) => Blog::parse(blog_entry.path(), os_created, os_modified)
+                .and_then(|(blog, pwd)| { vacant_entry.insert(blog); Ok(Some(pwd)) }),
         };
         match res {
-            Ok(true) => { updated_blogs.push(id); },
-            Ok(false) => {} 
+            Ok(Some(pwd)) => { updated_blogs.push((id, pwd)); },
+            Ok(None) => {} 
             Err(e) =>  {
                 eprintln!("Error happended: {}\n. Skipped.", e);
                 continue
@@ -145,15 +149,20 @@ fn main() {
         println!("done.");
     }
     println!("All blog manifest are read. Total blogs: {}, needs update: {}", blog_manifest.blogs.len(), updated_blogs.len());
+    // calculate tags
+    for (id, _) in &updated_blogs {
+        let blog = blog_manifest.blogs.get(id).unwrap();
+        for tag_blogs in blog_manifest.tags.values_mut() {
+            tag_blogs.remove(id);
+        }
+        for tag in &blog.tags {
+            blog_manifest.tags.entry(tag.clone()).or_insert(HashSet::new()).insert(id.clone());
+        }
+    }
 
-    print!("Writing blog manifest to file...");
-    stdout.flush().unwrap();
-    serde_json::to_writer(fs::File::create(&blog_manifest_path).unwrap(), &blog_manifest).unwrap();
-    println!("done.");
-
-    // calculate tags, also copy files
-    for id in updated_blogs {
-        let blog = blog_manifest.blogs.get(&id).unwrap();
+    // calculate preview, also copy files
+    for (id, pwd) in updated_blogs {
+        let blog = blog_manifest.blogs.get_mut(&id).unwrap();
 
         let archive_name = id.strip_suffix(".md").unwrap().to_string();
 
@@ -163,7 +172,6 @@ fn main() {
 
         print!("Copying blog and assets: {}...", id);
         stdout.flush().unwrap();
-        blog_manifest.tags.extend(blog.get_tags());
 
         let archive_path = dst_blogs_path.join(&archive_name);
 
@@ -178,27 +186,22 @@ fn main() {
         }
 
         let blog_content = fs::read_to_string(blogs_path.join(&id)).unwrap();
-        let rendered_blog_content = render::render(&blog_content);
+        let (rendered_blog_content, preview) = render::render(&blog_content);
 
         let mut dst_blog = fs::File::create(dst_blogs_path.join(&html)).unwrap();
 
-        if let Some(password) = blog.get_password().and_then(|pwd| {
-            if no_encrypt {
-                None
-            } else {
-                Some(pwd)
-            }
-        }) {
+        if let Some(password) = pwd.and_then(|pwd| (!no_encrypt).then_some(pwd)) {
             print!("\n    Blog {id} needs encryption. encrypting...");
             stdout.flush().unwrap();
             
-            let encrypted = crypto::encrypt_data(&rendered_blog_content, password);
+            let encrypted = crypto::encrypt_data(&rendered_blog_content, &password);
             let encoded = BASE64_STANDARD.encode(encrypted);
             dst_blog.write(save_html_secret(blog, encoded, &copyright_name).as_bytes()).unwrap();
             println!("done.");
         } else {
+            blog.preview = preview;
             dst_blog.write(save_html(blog, rendered_blog_content, &copyright_name).as_bytes()).unwrap();
-            if let Some(license) = blog.get_license() {
+            if let Some(license) = &blog.license {
                 if license.is_permissive() && !no_archive {
                     // allow downloading and archive
                     print!("\n    Creating archive for blog {id} due to permissive license...");
@@ -229,6 +232,11 @@ fn main() {
         }
         println!("done.");
     }
+
+    print!("Writing blog manifest to file...");
+    stdout.flush().unwrap();
+    serde_json::to_writer(fs::File::create(&blog_manifest_path).unwrap(), &blog_manifest).unwrap();
+    println!("done.");
     
     
     for site in fs::read_dir(sites_path).unwrap() {

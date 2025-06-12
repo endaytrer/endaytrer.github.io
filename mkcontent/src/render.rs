@@ -13,7 +13,8 @@ use crate::blog::Blog;
 fn render_katex(x: &str, display: bool) -> String {
     katex::render_with_opts(x, Opts::builder().display_mode(display).build().unwrap()).unwrap_or_else(|_| x.to_string())
 }
-pub fn render(md: &str) -> String {
+/// Render to html, also returns preview
+pub fn render(md: &str) -> (String, Option<String>) {
     let options = markdown::Options {
         parse: markdown::ParseOptions { constructs: markdown::Constructs {
             math_flow: true,
@@ -37,9 +38,11 @@ pub fn render(md: &str) -> String {
     let mut writer = Writer::new(Cursor::new(Vec::new()));
     let mut math_mode_display = None;
     let mut math_content = String::new();
+    let mut preview = None;
+    let mut preview_buffer = None;
 
     let mut reader = reader;
-
+    // Find math blocks and content
     loop {
         let event = reader.read_event();
         match event {
@@ -62,17 +65,23 @@ pub fn render(md: &str) -> String {
                         math_mode_display = Some(display);
                         math_content.clear();
                     }
+                } else if preview_buffer.is_none() && preview.is_none() && tag == b"p" {
+                    preview_buffer = Some(String::new())
                 }
                 writer.write_event(Event::Start(e.clone())).unwrap();
             }
             Ok(Event::End(ref e)) => {
-                let tag = std::str::from_utf8(e.name().0).unwrap_or("");
-                if tag == "code" {
+                let tag = e.name().0;
+                if tag == b"code" {
                     if let Some(display) = math_mode_display {
                         let rendered = render_katex(&math_content, display);
                         writer.write_event(Event::Text(BytesText::from_escaped(&rendered))).unwrap();
                         math_mode_display = None;
                         math_content.clear();
+                    }
+                } else if tag == b"p" {
+                    if let Some(buf) = preview_buffer.take() {
+                        preview = Some(buf);
                     }
                 }
                 writer.write_event(Event::End(e.clone())).unwrap();
@@ -85,6 +94,9 @@ pub fn render(md: &str) -> String {
                             .unwrap_or_else(|_| String::from_utf8_lossy(&e.into_inner()).into_owned())
                     );
                 } else {
+                    if let Some(buf) = &mut preview_buffer {
+                        buf.push_str(&String::from_utf8_lossy(&e))
+                    }
                     writer.write_event(Event::Text(e)).unwrap();
                 }
             }
@@ -99,7 +111,7 @@ pub fn render(md: &str) -> String {
         }
     }
     let result = writer.into_inner().into_inner();
-    String::from_utf8(result).unwrap()
+    (String::from_utf8(result).unwrap(), preview)
 }
 
 pub fn save_html(metadata: &Blog, content: String, copyright_name: &str) -> String {

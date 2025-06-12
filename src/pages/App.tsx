@@ -24,7 +24,7 @@ const navLinks = [
     link: "https://www.danielgu.org",
   },
   {
-    name: "Blogs",
+    name: "All Blogs",
     link: "/blogs",
   }
 ]
@@ -107,8 +107,7 @@ export default function App() {
     }
     return oldName;
   }
-  return (
-    <main className="bg-teal-200 dark:bg-teal-950 text-teal-700 dark:text-teal-500 flex flex-col items-center">
+  return <>
       <header className="w-full min-h-svh flex flex-row items-center justify-center py-16 bg-teal-500 dark:bg-zinc-900 text-teal-900 dark:text-teal-500 rounded-b-sm shadow-lg">
         <div className="flex flex-col gap-4 lg:gap-0 lg:flex-row w-full max-w-7xl">
           <div className="w-full lg:w-2/3">
@@ -306,7 +305,7 @@ export default function App() {
           </div>
         </div>
       </header>
-      <article className="flex flex-col justify-between my-4 px-6 w-full min-h-svh max-w-7xl">
+      <main className="flex flex-col justify-between my-4 px-6 w-full min-h-svh max-w-7xl mx-auto">
         <div ref={anchorRef} className="mb-6"></div>
         <div className="flex flex-col xl:grid grid-cols-3 gap-y-12">
           <div className="w-full xl:pr-4 row-span-2">
@@ -317,13 +316,24 @@ export default function App() {
             <div className="w-full mt-10 xl:pr-12 flex flex-col">
               {/* <h3 className="text-xl font-bold tracking-wide my-10 text-teal-900 dark:text-lime-50">Navigate</h3> */}
               {navLinks.map(({name, link}) => 
-                <a key={name} href={link} className="text-lg font-serif text-teal-900 dark:text-teal-300 cursor-pointer border-b-1 border-teal-300 dark:border-teal-900 last:border-b-0 py-2">{name}</a>
+                <a key={name} href={link} className="text-lg font-serif font-bold text-teal-900 dark:text-teal-300 cursor-pointer border-b-1 border-teal-300 dark:border-teal-900 last:border-b-0 py-2">{name}</a>
               )}
             </div>
           </div>
           <div className="w-full col-span-2 xl:pl-4">
             <h3 className="text-xl font-bold tracking-wide mt-10 mb-5 text-teal-900 dark:text-lime-50">Recent Blogs</h3>
-            <BlogList limit={5} paging={false}/>
+            <BlogList
+              limit={5}
+              setLimit={undefined}
+              page={0}
+              setPage={undefined}
+              filter={undefined}
+              setFilter={undefined}
+              sort={"created"}
+              setSort={undefined}
+              descent={true}
+              setDescent={undefined}
+              paging={false}/>
           </div>
 
           <div className="w-full col-span-2 xl:pl-4">
@@ -359,12 +369,6 @@ export default function App() {
           </div>
         </div>
         <div className="mt-6"></div>
-      </article>
-      <footer className="bg-teal-500 dark:bg-zinc-900 w-full flex flex-col items-center py-10 px-6">
-        <div className="w-full max-w-7xl text-xs text-teal-300 dark:text-teal-900">
-          {blogConfig.copyright.map((para, i) => <p key={i} dangerouslySetInnerHTML={{__html: para}}></p>)}
-        </div>
-      </footer>
-    </main>
-  );
+      </main>
+  </>;
 };
