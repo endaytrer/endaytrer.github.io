@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Aurora</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Aurora</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2024-06-23T00:00:00+08:00"></time></div>
+                    <span>&copy; 2024 by Daniel Gu. All rights reserved.</span>
+            </div>
+            <div id="plaintext">
+    <code id="ciphertext">WtexCdKk2kuZp5AYzq1Li/CKtCVUXmdmAZgwk6Bs/UZNj4+td59IS1r23GbxHvWGyZnWcy31ALqw7220WPDQSZITnoyBK8hmrhz5V9BAMuk&#x3D;</code>
+    <div class="cipher-float">
+        <div class="cipher-dialog">
+
+            <p><strong id="password-prompt">Password needed for blog</strong></p>
+            <form id="password-form">
+                <label for="password"></label>
+                <input type="password" id="password">
+                <input type="submit" value="Unlock">
+            </form>
+        </div>
+    </div>
+</div>
+<script defer src="decrypt.js"></script>
+            <br />
+            <div class="copyright">
+                    <span><a href="#">Aurora</a> &copy; 2024 by Daniel Gu. All rights reserved.</span>
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
