@@ -118,7 +118,7 @@ pub fn save_html(metadata: &Blog, content: String, copyright_name: &str) -> Stri
     let reg = Handlebars::new();
     // read template from file
     let template_str = fs::read_to_string("template/blog.html").unwrap();
-    let date_str = metadata.modified.format(&Rfc3339).unwrap();
+    let date_str = metadata.created.format(&Rfc3339).unwrap();
     reg.render_template(&template_str, &serde_json::json!({
         "title": metadata.title,
         "date": date_str,
