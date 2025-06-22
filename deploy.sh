@@ -80,7 +80,7 @@ npm run build
 mv dist_git $BUILD_FOLDER/.git
 
 # Check if the build folder exists after the build command.
-if [ ! -f "$BUILD_FOLDER/index.html" ] || [ ! -f "$BUILD_FOLDER/api/blog-manifest.json"]; then
+if [ ! -f "$BUILD_FOLDER/index.html" ] || [ ! -f "$BUILD_FOLDER/api/blog-manifest.json" ]; then
   echo "❌ Error: Build folder '$BUILD_FOLDER' not found. The 'npm run build' process may have failed."
   exit 1
 fi
