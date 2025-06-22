@@ -69,7 +69,7 @@ git push origin $SOURCE_BRANCH
 # --- Step 2: Build the Project ---
 echo "📦 Running the build command ('npm run build')..."
 npm run build
-cd mkcontent && cargo run --release
+(cd mkcontent && cargo run --release)
 
 # Check if the build folder exists after the build command.
 if [ ! -d "$BUILD_FOLDER" ]; then

@@ -13,3 +13,5 @@ static/api
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+mkcontent/target
