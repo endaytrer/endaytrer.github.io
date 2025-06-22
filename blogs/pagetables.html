@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Page Tables are Easy... Or Are They?</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Page Tables are Easy... Or Are They?</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2024-02-25T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by-sa/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                            <i class="fa-brands fa-creative-commons-sa"></i>
+                        CC BY-SA 4.0
+                    </a>
+            </div>
+            <blockquote>
+<p><strong>Prerequisites</strong>: Programming Language (Languages with pointers like C are better), Data Structure, Computer Organization or Assembly Language</p>
+</blockquote>
+<p>Recently I was developing an OS kernel on RISC-V, picking up the original project mentioned in my first post <a href="#test.md">Hello world</a>. The project is now mostly complete, but some essential features are missing, and many bugs are yet to be fixed. The git repo is at <a href="https://github.com/endaytrer/endros">https://github.com/endaytrer/endros</a>. Thank you so much if you can post issues and PRs to this project!</p>
+<p>Thanks to this opportunity, I can delve more deeply into the concept of virtual memory. This post is to share my understanding of page tables, the modern way of virtual memory managing.</p>
+<h2>What is a Page Table?</h2>
+<p>In modern OSes, processes lives in an unrealistic utopian world. They think they owned the whole address space, and other processes are simply non-existance.</p>
+<p>On the other hand, actually there are a lot of processes running concurrently. The problem is, when multiple processes is refering to the same address, how to make sure that they get the correspondent address space?</p>
+<p>For example,</p>
+<pre><code class="language-c">// Process 1
+int *p = (int *)0x100000000;
+*p = 0xdeadbeef;
+sleep(1);
+printf(&quot;%x\n&quot;, *p);
+</code></pre>
+<pre><code class="language-c">// Process 2
+int *p = (int *)0x100000000;
+*p = 0xcafebabe;
+sleep(1);
+printf(&quot;%x\n&quot;, *p);
+</code></pre>
+<p>The two processes are all trying to modify the integer stored at <code>0x100000000</code> differently. How to make sure that process 1 gets <code>0xdeadbeef</code> and process 2 gets <code>0xcafebabe</code>?</p>
+<p>Historically, there are many other approaches such as <strong>Static Relocation</strong>, <strong>Base-and-Bound</strong>, <strong>Segmentation</strong>. They are really important for us to understand virtual memory, and why page tables are invented. However, they are not the topic in this post. If you are interested, there are material in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/">Operating Systems: Three Easy Pieces</a> for you, and correspondent links are here (great shoutout to Prof. Remzi H. Arpaci-Dusseau!):</p>
+<ul>
+<li>Address Spaces: <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf">https://pages.cs.wisc.edu/~remzi/OSTEP/vm-intro.pdf</a></li>
+<li>Address Translation: <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-mechanism.pdf">https://pages.cs.wisc.edu/~remzi/OSTEP/vm-mechanism.pdf</a></li>
+<li>Segmentation: <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-segmentation.pdf">https://pages.cs.wisc.edu/~remzi/OSTEP/vm-segmentation.pdf</a></li>
+</ul>
+<p>The approach we are using, which is also used by most modern operating systems, is <strong>Page Tables</strong>. Basically, Processes are using <strong>virtual addresses (VA)</strong>, and then translated into <strong>physical addresses (PA)</strong> which is used by hardware. In this way, diffenent processes can have the same virtual addresses, then translated to different physical addresses, making processes' address space isolated.</p>
+<p>How does page tables translate virtual addresses to physical addresses?</p>
+<p>The simplest way is to make a table, listing the physical address corresponding to each virtual address. I forged a name <strong>Address table</strong>, because literally nobody uses it:</p>
+<p><strong>Address Table</strong></p>
+<table>
+<thead>
+<tr>
+<th>VA</th>
+<th>PA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00000000</code></td>
+<td><code>0x42fbe091</code></td>
+</tr>
+<tr>
+<td><code>0x00000001</code></td>
+<td><code>0x6cd0c7c9</code></td>
+</tr>
+<tr>
+<td><code>0x00000002</code></td>
+<td><code>0x000c2b79</code></td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0xffffffff</code></td>
+<td><code>0x432f1be8</code></td>
+</tr>
+</tbody>
+</table>
+<p>To translate an address <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi></mrow><annotation encoding="application/x-tex">x</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">x</span></span></span></span></code>, you find the <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi></mrow><annotation encoding="application/x-tex">x</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">x</span></span></span></span></code>-th entry in the table, and the physical address is simply there.</p>
+<p>This approach is simply too bad, because:</p>
+<ol>
+<li>You need <strong>8 times</strong> more space to store the table than the actual data! (in 64-bit machines, 8 bytes are needed to describe an address of one byte data)</li>
+<li>If you access contiguous virtual spaces, the physical addresses are scattered everywhere. Caches cannot predict what you want to visit, make accessing data extremely slow.</li>
+</ol>
+<p>Inspired by the second drawback, instead of mapping a single VA to a single PA, we can map a range of VA to a range of PA. For example, mapping <code>0x00000000</code> to <code>0x00000fff</code> to physical space <code>0x7f823000</code> to <code>0x7f823fff</code>.</p>
+<p>To make the translation as simple as possible, we make the last <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span></span></span></span></code> bits of a VA the same as the PA. That is equivalent to map <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mi>k</mi></msup></mrow><annotation encoding="application/x-tex">2^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8491em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span></span></span></span></code> addresses from VA <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup></mrow><annotation encoding="application/x-tex">x\times 2^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.8491em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span></span></span></span></code> (<code>0bXXXXX00...0(k zeros)</code>) to <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">(x+1)\times 2^k - 1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9324em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></code> (<code>0bXXXXX11...1(k ones)</code>)to PA <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>y</mi><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup></mrow><annotation encoding="application/x-tex">y\times 2^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7778em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.8491em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span></span></span></span></code> (<code>0bYYYYY00...0(k zeros)</code>) to <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mi>y</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">(y+1)\times 2^k - 1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9324em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></code> (<code>0bYYYYY1...1(k ones)</code>).</p>
+<p>In most cases, we define <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi><mo>=</mo><mn>12</mn></mrow><annotation encoding="application/x-tex">k = 12</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">12</span></span></span></span></code>. That is we map <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mn>12</mn></msup><mo>=</mo><mn>4096</mn></mrow><annotation encoding="application/x-tex">2^{12} = 4096</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">12</span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">4096</span></span></span></span></code> bytes at a time. We call this size <strong>Pagesize</strong>, and the virtual addresses from <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup></mrow><annotation encoding="application/x-tex">x\times 2^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.8491em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span></span></span></span></code> to <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo><mo>×</mo><msup><mn>2</mn><mi>k</mi></msup><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">(x+1)\times 2^k - 1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.9324em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">1</span></span></span></span></code> makes up a <strong>Page</strong>. The last <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span></span></span></span></code> bits which are the same in VAs and PAs are called <strong>Offset</strong>, other bits in virtual addresses <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi></mrow><annotation encoding="application/x-tex">x</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">x</span></span></span></span></code> are called <strong>Virtual Page Number (VPN)</strong>, and the correspond bits in physical address <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>y</mi></mrow><annotation encoding="application/x-tex">y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span></code> are called <strong>Physical Frame Number.</strong></p>
+<p>Just like in the address table, we can also construct a table for translating VPN to PFN like this. This table now has an official name: <strong>Page table</strong>.</p>
+<p><strong>Page Table:</strong> <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mi>k</mi><mo>=</mo><mn>12</mn><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">(k = 12)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">12</span><span class="mclose">)</span></span></span></span></code></p>
+<table>
+<thead>
+<tr>
+<th>VPN</th>
+<th>PFN</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00000</code></td>
+<td><code>0x42fbe</code></td>
+</tr>
+<tr>
+<td><code>0x00001</code></td>
+<td><code>0x6cd0c</code></td>
+</tr>
+<tr>
+<td><code>0x00002</code></td>
+<td><code>0x000c2</code></td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0xfffff</code></td>
+<td><code>0x432f1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Let's go through the process to translate VA <code>0x00001c38</code> to PA:</p>
+<ol>
+<li>
+<p>What is the <strong>VPN</strong> for this address?</p>
+<p>The VPN (upper <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>64</mn><mo>−</mo><mi>k</mi></mrow><annotation encoding="application/x-tex">64 -k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">64</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span></span></span></span></code> bits) of the address is bit <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mn>63</mn><mo separator="true">,</mo><mn>12</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[63, 12]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord">63</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord">12</span><span class="mclose">]</span></span></span></span></code>: <code>0x00001</code></p>
+</li>
+<li>
+<p>What is the corresponding <strong>PFN</strong>?</p>
+<p>We look up the page table and find out that VPN <code>0x00001</code> corrensponds to PFN <code>0x6cd0c</code></p>
+</li>
+<li>
+<p>Making up a physical address</p>
+<p>We keep the <strong>offset</strong> (lower <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span></span></span></span></code> bit), or <code>0xc38</code> the same, and concat PFN to offset: <code>0x6cd0cc38</code></p>
+</li>
+</ol>
+<p>Notice that VPN is not actually stored in memory. If we store 52-bit PFN in 8 bytes, for a VPN <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>v</mi></mrow><annotation encoding="application/x-tex">v</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">v</span></span></span></span></code> we need to translate, we just index into the page table into the <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>v</mi></mrow><annotation encoding="application/x-tex">v</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">v</span></span></span></span></code>-th entry. Thus, we need only <strong>1/512</strong> of address space to store the page table! (Think about why?) Now we can fit multiple different page tables onto physical memory, and let each process have one. In this way, processes can have seperated address space.</p>
+<p>Also, we didn't specify the length of PFN. You can map 52-bit VPN to 20-bit PFN, making the physical address space smaller than the virtual address space. That's why we have 64-bit computer, but typical PC's DRAM size is only 16GiB (34-bit address), 32GiB (35-bit address) or 64GiB (36-bit address).</p>
+<p>On real hardware, page tables are implemented like this.</p>
+<ol>
+<li>We store the start <strong>Physical</strong> address of page table in a dedicated register called <strong>Page Table Base Register (PTBR)</strong>. Suppose <code>ptbr = 0x100000</code></li>
+<li>Suppose we are visiting <strong>Virtual</strong> address <code>0x12345678</code>, take the VPN <code>0x12345</code>.</li>
+<li>Each entry is <strong>8</strong> bytes, so the offset of the correspondent PFN entry is at <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mn>12345</mn></mrow><mo>×</mo><mn>8</mn><mo>=</mo><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mn>91</mn><mi mathvariant="normal">a</mi><mn>28</mn></mrow></mrow><annotation encoding="application/x-tex">\mathrm{0x12345}\times 8 = \mathrm{0x91a28}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord mathrm">0x12345</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">8</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord"><span class="mord mathrm">0x91a28</span></span></span></span></span></code></li>
+<li>The address of page table entry is the sum of page table base and offset:  <code>0x100000 + 0x91a28 = 0x191a28</code></li>
+<li>Read 8 bytes from <strong>Physical</strong> address <code>0x191a28</code>, and we get the PFN. Suppose it is <code>0x9abcd</code></li>
+<li>Concatenate PFN with the offset 0x678, we have the physical address <code>0x9abcd678</code>.</li>
+</ol>
+<p><img src="pagetables.assets/l1pt.png" alt="l1pt" /></p>
+<p>Pseudo code:</p>
+<pre><code class="language-c">PA translate(VA virtual_address) {
+  // get VPN and offset from the virtual address.
+  VPN vpn = virtual_address &gt;&gt; k;
+  OFFSET offset = virtual_address &amp; ((1 &lt;&lt; k) - 1);
+  
+  // read vpn-th entry of page table
+  PA&lt;PTE&gt; page table = (PA&lt;PTE&gt;)ptbr;
+  PFN pfn = read_physical(page table[vpn], 8);
+  
+  // translate
+  PA physical_address = (pfn &lt;&lt; k) | offset;
+  return physical_address;
+}
+</code></pre>
+<p>Remember that this process is automatically done by <strong>Hardware (Memory Management Unit, MMU)</strong>, not by ourselves. When page tables are enabled, we always write code to visit the <strong>Virtual address</strong>.</p>
+<pre><code class="language-c">// visiting virtual address
+int *x = (int *)(0x12345678);
+
+// THERE IS NO WAY TO VISIT PHYSICAL ADDRESS!
+</code></pre>
+<p>However, in 64-bit address space, the size of page table is still insane: <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mn>64</mn></msup><mi mathvariant="normal">/</mi><mn>512</mn><mo>=</mo><mn>32768</mn><mrow><mi mathvariant="normal">T</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">B</mi></mrow></mrow><annotation encoding="application/x-tex">2^{64}/512 = 32768\mathrm{TiB}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.0641em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">64</span></span></span></span></span></span></span></span></span><span class="mord">/512</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord">32768</span><span class="mord"><span class="mord mathrm">TiB</span></span></span></span></span></code>. Also, a process may only utilize few megabytes / gigabytes of memory, which is far less than the address space. There are multiple ways to address that, including simplying making page bigger (less VPNs), <strong>segmented page table</strong>, <strong>inverted page table</strong>, etc (<a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf">https://pages.cs.wisc.edu/~remzi/OSTEP/vm-smalltables.pdf</a>). The most used method, <strong>Multi-level Page Tables</strong> is discussed in next section.</p>
+<h2>Multi-Level Page Tables (MLPT)</h2>
+<h3>Page Table Entries</h3>
+<p>In the last section, we stored the PFN in each entry of page table. In 64-bit virtual space and 64-bit physical space with page size 4096 bytes, only 64-12=52 bits in an entry stores the actual data, and 12 bits are unused. By making them flag bits, we can gain more control over the pages we mapped. The flags on different platform The most commonly used flags are:</p>
+<ol>
+<li><strong>Read (R):</strong> The page can be read.</li>
+<li><strong>Write (W):</strong> The page can be modified</li>
+<li><strong>Execute (X):</strong> Code on that page can be executed.</li>
+<li><strong>Valid (V):</strong> The page is mapped.</li>
+<li><strong>User (U):</strong> The page can be accessed in User mode.</li>
+<li><strong>Present (P):</strong> The page is in memory, not swapped onto disk.</li>
+<li><strong>Dirty (D):</strong> The page has been modified since last time the flag is cleared.</li>
+</ol>
+<p>Now the entry in page table have two parts: PFN and flags, we cannot refer them as PFN anymore, so let's use its formal name: <strong>Page table Entry (PTE)</strong></p>
+<p>Present and dirty flags is for memory swapping, which is not in this post's scope, and user flag is always platform specific. Thus, we can make some pages (<code>.rodata</code>) readonly, some pages (<code>.text</code>) read and executable, some pages (<code>.data</code>, <code>.bss</code>) with read / write permission, and some pages not even exist.</p>
+<p>If you build your own hardware, you can order PFN and flags into 8 bytes anyway you like. If you want to build on real platforms like x86_64, arm and RISC-V, you have to follow the specs in MMU. Here is an example.</p>
+<pre><code>63                                      31                            7654 3210
+0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+[                  Physical Frame Number [63:12]               ] ---- DPUH RWXV
+</code></pre>
+<p>In this example, bit[63:12] is for PFN, bits[7:0] is for flags. H is for <strong>huge page</strong>, it is also a useful flag that is will be mentioned a few sections later.</p>
+<h3>Paging the Page Table</h3>
+<p>Now we have the ability to make some virtual memory region map to nothing by simply set the valid bit to zero; however we cannot shrink the size of page tables yet. Since we can mark some pages not exist, <strong>why can't we mark some page tables not exist?</strong></p>
+<p>Firstly, <strong>page tables should be divided into pages</strong> like below. In most cases, since each page is 4096 bytes and PTE is 8 bytes, one page of page table only contains 512 entries:</p>
+<p><strong>Page table Page 0 @ 0x10eb8000:</strong></p>
+<table>
+<thead>
+<tr>
+<th>VPN</th>
+<th>PFN</th>
+<th>Valid</th>
+<th>Flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00000</code></td>
+<td><code>0x42fbe</code></td>
+<td>yes</td>
+<td>r-x</td>
+</tr>
+<tr>
+<td><code>0x00001</code></td>
+<td><code>0x6cd0c</code></td>
+<td>yes</td>
+<td>rw-</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0x001ff</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Page table Page 1 @ 0x10eb9000:</strong></p>
+<table>
+<thead>
+<tr>
+<th>VPN</th>
+<th>PFN</th>
+<th>Valid</th>
+<th>Flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00200</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+<tr>
+<td><code>0x00201</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0x002ff</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+</tbody>
+</table>
+<p><strong>......</strong></p>
+<p><strong>Page table Page 2047 @ 0x116b7000:</strong></p>
+<table>
+<thead>
+<tr>
+<th>VPN</th>
+<th>PFN</th>
+<th>Valid</th>
+<th>Flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0xffe00</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+<tr>
+<td><code>0xffe01</code></td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0xfffff</code></td>
+<td><code>0x075a3</code></td>
+<td>yes</td>
+<td>r-x</td>
+</tr>
+</tbody>
+</table>
+<p>Suppose that we only need three pages for a process: page with vpn <code>0x00000</code>, <code>0x00001</code> and <code>0xfffff</code>, we only need 2 pages of page table to exist: Page table Page 0 and Page table Page 2047. We need a way to mark the remaining pages of the page table to be invalid.</p>
+<p>You can use any method including bitmap and freelist, or using virtual memory managing techniques to manage the page table just like regular memory, like base and bound (not applicable in this case) and segmentation.</p>
+<p>Since we can apply any virtual memory managing techniques to manage page tables, <strong>why can't we use page tables to manage page table pages?</strong> By doing this, the page table pages can not only be unused, but also be non-contiguous.</p>
+<p>When we observe into the VPNs in the page table pages above, we can see that:</p>
+<ul>
+<li>The lower 9 bits are the index of PTE from the base of the page table page, or I named it <strong>Page table Index (PTI)</strong>.</li>
+<li>The higher bits are the index of the page table page, or I named it <strong>Page table Page Number (PPN)</strong>.</li>
+</ul>
+<p>For example address <code>0x12345678</code> has VPN <code>0x12345</code>  = <code>0b0001 0010 0011 0100 0101</code>, the lower 9 bits <code>0b1 0100 0101</code> = <code>0x145</code> is the index of PTE, and  the upper 11 bits <code>0b000 1001 0001</code> = <code>0x091</code> is the index of page table page. That means, the PTE is at the <strong>325th (<code>0x145</code>) entry</strong> of <strong>page table page 145 (<code>0x91</code>)</strong>.</p>
+<p>Let's manage this with a page table with another page table-like table. To differenciate this with the page table mapping regular memory, we call this a <strong>Page Directory</strong>. The entries in page directories, are also named as <strong>Page Directory Entry (PDE)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Page table Page Number (PPN)</th>
+<th>PFN of the Page table Page</th>
+<th>Valid</th>
+<th>Flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x000</td>
+<td>0x10eb8</td>
+<td>yes</td>
+<td>rw-</td>
+</tr>
+<tr>
+<td>0x001</td>
+<td>/</td>
+<td>no</td>
+<td>/</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td>0x7ff</td>
+<td>0x10eb9</td>
+<td>yes</td>
+<td>rw-</td>
+</tr>
+</tbody>
+</table>
+<p>In this way, we can allocate only page table page 0 and page table page 2047. Comparing to simple page tables, we have only <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mn>8</mn><mo>+</mo><mn>2</mn><mo stretchy="false">)</mo><mo>×</mo><mn>4096</mn><mo>=</mo><mn>40</mn><mrow><mi mathvariant="normal">k</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">B</mi></mrow></mrow><annotation encoding="application/x-tex">(8+2)\times 4096 = 40\mathrm{kiB}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord">8</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">2</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">4096</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord">40</span><span class="mord"><span class="mord mathrm">kiB</span></span></span></span></span></code> space to store the page table, instead of <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>32768</mn><mrow><mi mathvariant="normal">T</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">B</mi></mrow></mrow><annotation encoding="application/x-tex">32768\mathrm{TiB}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord">32768</span><span class="mord"><span class="mord mathrm">TiB</span></span></span></span></span></code>! (Why there is 8 + 2 pages?) That is a significant improvement.</p>
+<p>Just like in page tables, page table page numbers are not stored in memory, we just use the page table page number to index into the page directory. Therefore, we have an identical structure for page table's PTE and page directories' PDE: PFN and flags.</p>
+<p>Since we can know every page table page's PA in the page directory, we only need to store the <strong>page directory base address</strong> in the <strong>PTBR</strong> register.</p>
+<p>Mimic the process of translating address in a single level page table, let's find out how to translate a virtual address <code>0x12345678</code> into physical address.</p>
+<ol>
+<li>Split the VA into <strong>VPN</strong> <code>0x12345</code> and <strong>offset</strong> <code>0x678</code>.</li>
+<li>Find the <strong>PTE</strong> of <strong>VPN</strong> <code>0x12345</code>:
+<ol>
+<li>Split the VPN into <strong>PPN</strong> and <strong>PTI</strong>: PPN = <code>0x91</code>, PTI = <code>0x145</code></li>
+<li>Find the <strong>PDE</strong> of <strong>PPN</strong> <code>0x91</code>:
+<ol>
+<li>Each <strong>PDE</strong> is 8 bytes, so the offset of the correspondent <strong>PDE</strong> of <strong>PPN</strong><code>0x91</code> is at <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mn>91</mn></mrow><mo>×</mo><mn>8</mn><mo>=</mo><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mn>488</mn></mrow></mrow><annotation encoding="application/x-tex">\mathrm{0x91}\times 8 = \mathrm{0x488}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord mathrm">0x91</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">8</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord"><span class="mord mathrm">0x488</span></span></span></span></span></code></li>
+<li>Read the page directory base address from PTBR (suppose is at <code>0x10eb0000</code>)</li>
+<li>Add PDE offset to it: <code>0x10eb0000 + 0x488 = 0x10eb0488</code>, we have the physical address of <strong>PDE</strong> <code>0x10eb0488</code></li>
+</ol>
+</li>
+<li>Each <strong>PTE</strong> is 8 bytes, so the offset of the correspondent <strong>PTE</strong> of <strong>PTI</strong><code>0x145</code> is at <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mn>145</mn></mrow><mo>×</mo><mn>8</mn><mo>=</mo><mrow><mn>0</mn><mi mathvariant="normal">x</mi><mi mathvariant="normal">a</mi><mn>28</mn></mrow></mrow><annotation encoding="application/x-tex">\mathrm{0x145}\times 8 = \mathrm{0xa28}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord"><span class="mord mathrm">0x145</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">8</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord"><span class="mord mathrm">0xa28</span></span></span></span></span></code></li>
+<li>Read 8 bytes from <strong>PDE</strong>'s Physical address <code>0x10eb0488</code>, and we get the PFN of the <strong>page table page</strong>. Suppose it is <code>0x01919</code>.</li>
+<li>Concatenate PFN of the <strong>page table page</strong> <code>0x01919</code> with the offset <code>0xa28</code>, we have the physical address of <strong>PTE</strong> <code>0x01919a28</code></li>
+</ol>
+</li>
+<li>Read 8 bytes from <strong>PTE</strong>'s Physical address <code>0x01919a28</code>, and we get the PFN of the <strong>actual page</strong>. Suppose it is <code>0x9abcd</code></li>
+<li>Concatenate PFN of the <strong>actual page</strong> <code>0x9abcd</code> with the offset <code>0x678</code>, we have the physical address <code>0x9abcd678</code>.</li>
+</ol>
+<p><img src="pagetables.assets/l2pt.png" alt="l2pt" /></p>
+<p>You can clearly see the recursive pattern here. In fact, this can be easily flattened to a loop structure.</p>
+<h3>More Levels</h3>
+<p>Above we demonstrate an virtual address space of 32 bits, or <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>4</mn><mtext>GiB</mtext></mrow><annotation encoding="application/x-tex">4\textrm{GiB}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord">4</span><span class="mord text"><span class="mord textrm">GiB</span></span></span></span></span></code>, and we need contiguous 8 pages to fit in the page directory. Modern 64-bit OS usually support more virtual address space. In most x86_64 / arm64 machine, 48-bit address is often used (Intel Ice Lake processor (or later) with Linux 4.14 (or later) optionally supports 57-bit address), and 39-bit for RISC-V64. In this case, the page directory becomes also inefficient.</p>
+<p>Why don't we page that again and again, until the <strong>highest-level page table fits in one page</strong>?</p>
+<p>Similary, we first we make the lower 9 bit of PPN the index into a page directory page (or Page Directory Index, PDI), and the table containing the mapping from page directory index to page directory page PFN is called Page Directory Pointers (PDP). The upper bits are called Page Directory Page Number (PDPN).</p>
+<p>You might be confused about the names a lot before. Fortunately, after that, engineers of x86_64 also run out the names, and decided to name page tables, page directories, page directory pointers and all upper level page tables simply <strong>Level-x Page tables</strong>, and the index into them are called <strong>Level-x VPN</strong>.</p>
+<p>Finally, we have 64-bit virtual address structures: (example of 4-level page table)</p>
+<pre><code>63                  47          38          29          20          11
+0000 0000 0000 0000 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000
+[     Reserved    ] [  L4VPN  ] [  L3VPN  ] [  L2VPN  ] [  L1VPN  ] [   Offset    ]
+</code></pre>
+<p>You can find out that both level-x VPN's and offset's bit width are a multiple of 3 bits. Using <strong>Octal numbers</strong> is easier here. For example: If L4VPN = 0o123, L3VPN = 0o456, L2VPN = 0o701, L1VPN = 0o234, Offset = 0o3472, the VA is:</p>
+<pre><code>0o123 456 701 234 3472 = 001 010 011 100 101 110 111 000 001 011 100 111 010
+</code></pre>
+<p>Algorithm for translating 4 level page table (pagesize <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mi>k</mi></msup></mrow><annotation encoding="application/x-tex">2^k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8491em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8491em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span></span></span></span></span></span></span></span></code>, pseudo code):</p>
+<pre><code class="language-c">PA translate(VA virtual_address) {
+  PA page_base = ptbr;
+  
+  for (int level = 4; level &gt; 0; level--) {
+    // get the index into current level page table
+    int index = virtual_address.vpn.index_level[level];
+    
+    // read the page table entry
+    PTE pte = read_physical(page_base + index * sizeof(PTE), sizeof(PTE));
+    page table_base = pte.pfn &lt;&lt; k;
+  }
+  
+  return page_base | virtual_address.offset;
+}
+</code></pre>
+<h3>Epilogue of This Section</h3>
+<p>As page tables are established, we are constructing a <strong>map</strong> between VPN and PFN. It is like a binary search tree (BST) we learned in data structure lesson, but there are only 4 (or less) layers, and one layer have 512 branches.</p>
+<p>The page table is more like a multi-level <strong>hash table</strong>. Level-x VPN is used as the hash, and to resolve collision, we use another hash table with a different hash: a lower level VPN. Eventually, there is no collisions.</p>
+<p>Just like building a data structure, the page table also have 4 basic operations (CRUD):</p>
+<ul>
+<li>**Create: **Map a VPN to PFN</li>
+<li><strong>Retrieve</strong>: Walk through the pagetable to get PFN of a VPN</li>
+<li><strong>Update</strong>: Remap a physical page from VPN x to VPN y.</li>
+<li><strong>Delete</strong>: Free a physical page by unmapping its VPN.</li>
+</ul>
+<p>This section only contains how to retrieve PFN from a page table, that is only 1/4 of the operations. In the next section, we will try to manage page tables.</p>
+<p>Remember these terminologies! They are used <strong>A LOT</strong> in the sections later, If you don't remember them, you will be confused.</p>
+<ul>
+<li>
+<p><strong>VA</strong>: Virtual Address</p>
+</li>
+<li>
+<p><strong>PA</strong>: Physical Address</p>
+</li>
+<li>
+<p><strong>VPN</strong>: Virtual Page Number</p>
+</li>
+<li>
+<p><strong>PFN</strong>: Physical Frame Number</p>
+</li>
+<li>
+<p><strong>PTE</strong>: Page Table Entry</p>
+</li>
+<li>
+<p><strong>PTBR</strong>: Page Table Base Register</p>
+</li>
+<li>
+<p><strong>MMU</strong>: Memory Management Unit</p>
+</li>
+<li>
+<p><strong>TLB</strong>: Translation Lookaside Buffer</p>
+<p>What the heck is TLB? It is a buffer in MMU to cache the PTEs. In most cases, it is transparent to us (the programmers), but if we change PTBR, we must flush the cache for consistency.</p>
+</li>
+</ul>
+<h2>Managing Page Tables</h2>
+<p>Remember that we emphasise that <strong>when page tables are enabled, we always write code to visit the virtual address</strong>. Page tables also lie in memory, so we must access the page tables by their virtual addresses. When we are writing PTEs, we also have to somehow know the <strong>physical address</strong> of one page we want to map. How to track PFN and VPN simultaneously?</p>
+<h3>Don't Map the Kernel Space?</h3>
+<p>The prerequisite is <strong>when page tables are enabled</strong>, we always write code to visit the virtual address. So don't enable it when you are managing page tables! :)</p>
+<p>It is the most efficient way, but when OS kernels are getting more complicated and coexisting with many processes, this approach often makes your memory management tricky. You loses all the permission controls enabled by PTE flags, and it is easier for you to accidentally corrupt user space's data.</p>
+<h3>Identical Mapping: Feels Like No Mapping!</h3>
+<p>So let's enable page tables, but let's make the virtual address identical to physical address: <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>V</mi><mi>A</mi><mo>=</mo><mi>P</mi><mi>A</mi></mrow><annotation encoding="application/x-tex">VA = PA</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.22222em;">V</span><span class="mord mathnormal">A</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">P</span><span class="mord mathnormal">A</span></span></span></span></code> (a.k.a Identical Mapping).</p>
+<p>Since we have to allocate physical pages for the page table, let's introduce an <strong>allocator</strong>, which has two methods:</p>
+<ul>
+<li><code>PFN palloc()</code>: get one free physical page, mark it as used, and return its PFN.</li>
+<li><code>void pfree(PFN pfn)</code>:  mark the physical page free.</li>
+</ul>
+<p>The allocator can be implemented in various ways:</p>
+<ul>
+<li><strong>Bitmap:</strong> making a dedicated space in physical memory storing which physical pages are used, one bit for each page: 1 is used, 0 is free. On PCs with 64GiB RAM, the bitmap size is 2MiB, making it really large. Also, we need to search all the entries before we find a free page to allocate.</li>
+<li>**Stack Allocator: ** Maintaining a stack of freed pages, and the highest allocated physical page's PFN. Freeing a page simply pushes it onto the stack. If <code>alloc()</code> is called and the stack is not empty, poping one page from the stack and return it. If the stack is empty, increase the highest allocated page and return it. The drawback is you have to pre-determine the stack size, and when a lot of space is allocated then freed, the stack will be very large.</li>
+<li><strong>Freelist</strong>: Instead of maintaining a stack of freed pages in the stack allocator approach, using a chained list, where nodes are a struct descibing the freed page, and the virtual address of next free page. There is no space overhead by doing this approach, but to access the data of a page, we need its virtual space, making freeing a page requires not only the PFN, but also the VPN.</li>
+</ul>
+<p>Since we use identical mapping here, PFN and VPN are equal, eliminating the side effect of freelist, making it purely better.</p>
+<p>Before we enable page tables. we have to set up the page table mapping. After we understand the structure of multi-level page tables, it is easy to construct multi-level page tables for identical mapping on your own:</p>
+<ol>
+<li>
+<p>**Allocate Level-4 Page Table **</p>
+<pre><code class="language-c">PFN pt4 = palloc();
+</code></pre>
+<p>We want to utilize the benefits of multi-level pagetables -- saving space, so we allocate spaces for page tables in a lazy way: if the page table we need for mapping a page does not exist yet, creating it.</p>
+<p>Level-4 page table is not an exception. We have to map it as well.</p>
+<pre><code class="language-c">void ptmap(VPN vpn, PFN pfn);
+ptmap((VPN)pt4, pt4);
+</code></pre>
+</li>
+<li>
+<p><strong>Mapping pages</strong></p>
+<p>Let's implement <code>ptmap</code>.</p>
+<pre><code class="language-c">void ptmap(VPN vpn, PFN pfn) {
+  PA page_base = pt4;
+  for (int level = 4; level &gt; 1; level--) {
+    int index = vpn.index_level[level];
+    
+    // read the page table entry
+    PTE *pte = (PTE *)(page_base + index * sizeof(PTE));
+    PFN next_pfn;
+    if (!pte-&gt;valid) {
+      next_pfn = palloc();
+      *pte = PTE(next_pfn);
+      ptmap((VPN)next_pfn, next_pfn);
+    } else {
+      next_pfn = pte-&gt;pfn;
+    }
+  }
+  int index = vpn.index_level[1];
+  PTE *pte = (PTE *)(page_base + index * sizeof(PTE));
+  *pte = PTE(pfn);
+}
+</code></pre>
+<p>It is mostly similar to translating VPN to PFN, but since we are identically mapping the pages, the <code>read_physical</code> can be replaced with reading virtual address. Also, we are creating the pages and map identically if they do not exist.</p>
+<p>It contains a recursive call to itself. Will it overflow the stack when its is first called after <code>pt4 = palloc()</code>? Let's verify that by emulating the call stack. Suppose no pages are freed yet, and first <code>palloc</code> returns <code>0</code>.</p>
+<pre><code class="language-c">ptmap(0, 0) {
+  // level = 4,index = 0
+  // valid = false
+	palloc() // returns 1
+  ptmap(1, 1) {
+  	// level = 4,index = 0
+  	// valid = true
+  	// level = 3,index = 0
+  	// valid = false
+  	palloc() // returns 2
+  	ptmap(2, 2) {
+  		// level = 4,index = 0
+  		// valid = true
+  		// level = 3,index = 0
+  		// valid = true
+  		// level = 2,index = 0
+  		// valid = false
+  		palloc() // returns 3
+	  	ptmap(3, 3) {
+  			// level = 4,index = 0
+  			// valid = true
+	  		// level = 3,index = 0
+  			// valid = true
+  			// level = 2,index = 0
+  			// valid = true
+  			return;
+			}
+ 			return;
+    }
+  	// level = 2, index = 0
+  	// valid = true
+  	return;
+  }
+  // level = 3, index = 0
+	// valid = true
+  // level = 2, index = 0
+  // valid = true
+	return;
+}
+</code></pre>
+<p>That shows if no pages are ever freed, call to <code>ptmap()</code> are save.</p>
+<p>But it is not always this case. Suppose <code>palloc()</code> returns <code>0, 512, 1024, 1536, ...</code>:</p>
+<pre><code class="language-c">ptmap(0, 0) {
+  // level = 4,index = 0
+  // valid = false
+	palloc(); // returns 512
+  ptmap(512, 512) {
+  	// level = 4,index = 0
+  	// valid = true
+  	// level = 3,index = 0
+  	// valid = false
+  	palloc(); // returns 1024
+  	ptmap(1024, 1024) {
+  		// level = 4,index = 0
+  		// valid = true
+  		// level = 3,index = 0
+  		// valid = true
+  		// level = 2,index = 2
+  		// valid = false
+  		palloc(); // returns 1536
+	  	ptmap(1536, 1536) {
+  			// level = 4,index = 0
+  			// valid = true
+	  		// level = 3,index = 0
+  			// valid = true
+  			// level = 2,index = 3
+  			// valid = false
+        palloc(); // returns 2048
+        ptmap(2048, 2048) {
+  				// level = 4,index = 0
+  				// valid = true
+	  			// level = 3,index = 0
+  				// valid = true
+  				// level = 2,index = 4
+  				// valid = false
+  	      palloc(); // returns 2048
+	        ptmap(2560, 2560) {
+  					// level = 4,index = 0
+  					// valid = true
+	  				// level = 3,index = 0
+  					// valid = true
+  					// level = 2,index = 5
+	  				// valid = false
+          	...
+</code></pre>
+<p>and in this case it may not return before stack overflow! So it is really dangerous to map pagetables identically.</p>
+</li>
+</ol>
+<p>However, identical mapping is still necessary. Imagine that we are enabling paging after setting up the page table, but the code to enable paging is at a page that is not identically mapped. Now following pseudo assembly code is running:</p>
+<pre><code>			| PA            Instruction           |
+		  |-------------------------------------|
+pc -&gt; | 0x80200fe0    mov ptbr, pt4base[pc] |
+			| 0x80200fe4    flush tlb             |
+      | 0x80200fe8    ld r0, 0x30[pc]       |
+      | 0x80200fec    add r0, r1            |
+      | 0x80200ff0    st r0, [0x80201000]   |
+</code></pre>
+<p>after <code>mov ptbr, pt4base[pc]</code>, the physical address of page table base is loaded to PTBR, and paging is enabled, the program counter PC = PC + 4 = <code>0x80200fe4</code>.</p>
+<p>However, since paging is now enabled, the PC register are not referring to physical space anymore. Instead, it is pointing to VA <code>0x80200004</code>. If VPN <code>0x80200</code> is valid, the computer will execute the garbage stored in the physical space it maps to. Otherwise, if VPN <code>0x80200</code> is invalid, the machine will simply experience a page fault.</p>
+<p>So, some part of our code should be identically mapped. You can identically map all the kernel's loadable pages, or let the bootloader load itself identically, enable paging, and loading the kernel to designated virtual space. For simple kernels, mapping its loadable segments identically is the simplest way.</p>
+<h3>Fixed Offset</h3>
+<p>In identical mapping, the propose is that we can have a subset of virtual address space <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo>⊆</mo><mi>V</mi></mrow><annotation encoding="application/x-tex">C\subseteq V</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8193em;vertical-align:-0.136em;"></span><span class="mord mathnormal" style="margin-right:0.07153em;">C</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">⊆</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.22222em;">V</span></span></span></span></code>, where there exist a bijective function from the subset to the physical space: <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">∃</mi><mi>f</mi><mo>:</mo><mi>C</mi><mover accent="true"><mo>→</mo><mo>~</mo></mover><mi>P</mi></mrow><annotation encoding="application/x-tex">\exist f: C\tilde{\rarr} P</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord">∃</span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.07153em;">C</span><span class="mord accent"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.6679em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mrel">→</span></span><span style="top:-3.35em;"><span class="pstrut" style="height:3em;"></span><span class="accent-body" style="left:-0.25em;"><span class="mord">~</span></span></span></span></span></span></span><span class="mord mathnormal" style="margin-right:0.13889em;">P</span></span></span></span></code>. In identical mapping, the subset <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mo>=</mo><mi>P</mi></mrow><annotation encoding="application/x-tex">C = P</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.07153em;">C</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">P</span></span></span></span></code>, <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo>:</mo><mi>x</mi><mo>↦</mo><mi>x</mi></mrow><annotation encoding="application/x-tex">f: x\mapsto x</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.522em;vertical-align:-0.011em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">↦</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">x</span></span></span></span></code>. But we are not limited to this specific configuration.</p>
+<p>For example, an improved yet still simple way is **Fixed Offset: ** mapping the virtual address space from <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi></mrow><annotation encoding="application/x-tex">t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6151em;"></span><span class="mord mathnormal">t</span></span></span></span></code> to <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi><mo>+</mo><mi>N</mi></mrow><annotation encoding="application/x-tex">t + N</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6984em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">t</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.10903em;">N</span></span></span></span></code> to physical address 0 to N. Formally:</p>
+<pre><code class="language-math math-display"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>C</mi><mo>=</mo><mo stretchy="false">{</mo><mtext> </mtext><mi>p</mi><mo>+</mo><mi>t</mi><mtext> </mtext><mo>∣</mo><mtext> </mtext><mi mathvariant="normal">∀</mi><mi>p</mi><mo>∈</mo><mi>P</mi><mtext> </mtext><mo stretchy="false">}</mo><mspace linebreak="newline"></mspace><mi>f</mi><mo>:</mo><mi>x</mi><mo>↦</mo><mi>x</mi><mo>−</mo><mi>t</mi></mrow><annotation encoding="application/x-tex">C = \set{p + t\ |\ \forall p\in P} \\
+f: x\mapsto x - t
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.07153em;">C</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">{</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">p</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal">t</span><span class="mspace"> </span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">∣</span><span class="mspace"> </span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord">∀</span><span class="mord mathnormal">p</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">∈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.13889em;">P</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mclose">}</span></span><span class="mspace newline"></span><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">:</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.522em;vertical-align:-0.011em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">↦</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6151em;"></span><span class="mord mathnormal">t</span></span></span></span></span></code></pre>
+<p>It did not improve anything in the pagetable recursive mapping problem, but it enables us to plan more carefully of virtual address range <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mn>0</mn><mo separator="true">,</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">[0, t)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord">0</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">t</span><span class="mclose">)</span></span></span></span></code>. So, if we map the whole physical address space to very high virtual address space, and with careful setup of a boundary between low virtual address space and high fixed offset mapped space, the kernel code can be quite safe. So, mostly people use fixed offset to <strong>map all physical address space at once.</strong></p>
+<p>If there is no modification to the multi-level page table machenism above, obviously, it is not possible to create all 4-level page tables at once, because they take up too much space. Fourtunately, most MMUs today support <strong>Huge Pages</strong>, enabling us to use only one page of level 4 page table to map the whole physical spaces.</p>
+<h4>Huge Pages</h4>
+<p>Let's look back at how virtual address are made up with.</p>
+<pre><code>63                  47          38          29          20          11
+0000 0000 0000 0000 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000
+[     Reserved    ] [ L4Index ] [ L3Index ] [ L2Index ] [ L1Index ] [   Offset    ]
+</code></pre>
+<p>In previous sections, I always implies that a page has a size of 4096 bytes, and the offset has 12 bits. A page size of 4kiB gives us fine control over the size we want to allocated to a process, but this is clearly not for the case when we want to allocate large size of pages rapidly. Since both situations are useful in kernel programming, is there a way to incorporate variable page sizes but keep the simplicity of multi-level page tables? Therefore, <strong>Huge Pages</strong> are invented. It allows us to stop when visiting level <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi></mrow><annotation encoding="application/x-tex">k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.03148em;">k</span></span></span></span></code> page table's entry, and treat all the indexes after an offset.</p>
+<p>As a result, we can have 12-bit offset (page size 4kiB), 12+9 = 21-bit offset (page size 2MiB), 12+9+9 = 30-bit offset (page size 1GiB) and 12+9+9+9 = 39-bit offset (page size 512 GiB). The huge page mechanism is implemented like below:</p>
+<pre><code class="language-c">PA translate(VA virtual_address) {
+  PA page_base = ptbr;
+  
+  for (int level = 4; level &gt; 0; level--) {
+    // get the index into current level page table
+    int index = virtual_address.vpn.index_level[level];
+    
+    // read the page table entry
+    PTE pte = read_physical(page_base + index * sizeof(PTE), sizeof(PTE));
+    
++   // if it is a huge page, just return;
++   if (pte.huge) 
++     return (pte.pfn &lt;&lt; (k + (level - 1) * 9)) | virtual_address &amp; ((1 &lt;&lt; (k + (level - 1) * 9))) - 1);
+    
+    page table_base = pte.pfn &lt;&lt; k;
+  }
+  
+  return page_base | virtual_address.offset;
+}
+</code></pre>
+<p>We only need to add two more lines here. In short, if the PTE has huge flag, we directly concatenate the PFN to all the untranslated indices and offset.</p>
+<p>For example, let's translate VA <code>0xffc1234567</code></p>
+<pre><code>63                  47          38          29          20          11
+0000 0000 0000 0000 000 000 001 111 111 111 000 001 001 000 110 100 010 101 100 111
+[     Reserved    ] [ L4Index ] [ L3Index ] [ L2Index ] [ L1Index ] [   Offset    ]
+</code></pre>
+<p>The components are listed below:</p>
+<ul>
+<li>
+<p>L4 Index: <code>0x001</code></p>
+</li>
+<li>
+<p>L3 Index: <code>0x1ff</code></p>
+</li>
+<li>
+<p>L2 Index: <code>0x009</code></p>
+</li>
+<li>
+<p>L1 Index: <code>0x034</code></p>
+</li>
+<li>
+<p>Offset: <code>0x567</code></p>
+</li>
+</ul>
+<p><strong>Level 4 Page Table</strong></p>
+<table>
+<thead>
+<tr>
+<th>L4 Index</th>
+<th>PFN</th>
+<th>valid</th>
+<th>flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x0</code></td>
+<td><code>0x8023e</code></td>
+<td>true</td>
+<td>-r-x</td>
+</tr>
+<tr>
+<td><code>0x1</code></td>
+<td><code>0x8023f</code></td>
+<td>true</td>
+<td>-rw-</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Level 3 Page Table @ 0x8023f000</strong></p>
+<table>
+<thead>
+<tr>
+<th>L3 Index</th>
+<th>PFN</th>
+<th>valid</th>
+<th>flags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x0</code></td>
+<td>/</td>
+<td>false</td>
+<td>/</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+<tr>
+<td><code>0x1ff</code></td>
+<td><code>0x3</code></td>
+<td>true</td>
+<td><strong>h</strong>rw-</td>
+</tr>
+</tbody>
+</table>
+<p>When we walk in level 4 page table, we did not encounter a huge page flag. So, continue normally, finding <code>0x1ff</code> = 511th PTE of the level 3 page table at <code>0x8023f000</code>.</p>
+<p>When we walk in level 3 page table, we encontered a huge page flag. So, we stop here, concatenating PFN <code>0x3</code> to L2 Index, L1 Index and Offset. The physical address is: <code>11 000001001 000110100 010101100111</code> = <code>0xc1234567</code>.</p>
+<p>In this situation, we only allocated 2 pages of pagetable, to map 1GiB of data. If we mark PTE in level 4 page table with huge flag, we can even directly map 512 GiB of data! that is enough for most PCs.</p>
+<p>Thus, we can do the fixed offset mapping in just two lines of pseudo code:</p>
+<pre><code class="language-c">PFN pt4 = palloc();
+*(PTE *)((pt4 &lt;&lt; k) + t * sizeof(PTE)) = PTE(0, PTE_HUGE);
+</code></pre>
+<p>If you want to waste less virtual space, you can allocate one more page of level 3 page table, finding out the PFN of some PTEs, and mark those PTE huge. There is a tradeoff between more virtual space or more physical space. Since in most cases virtual address space is much cheaper than physical address space, mapping one level 4 PTE is great enough.</p>
+<p>It is clear how to translate between fixed offset mapped VPN and PFN. Give it a try:</p>
+<p>Suppose <code>t</code> = <code>0x0ff</code>, and the physical memory space is 4GiB. How to access the place with physical address <code>0xdeadbeef</code>?</p>
+<blockquote>
+<p>Answer: 0x7f80deadbeef, 0000 0000 0000 0000  0111 1111 1000 0000 1101 1110 1010 1101 1011 1110 1110 1111</p>
+</blockquote>
+<h2>Recursive Page Table</h2>
+<p>All in all, having a large space identically (or with a fixed offset) mapped to physical memory space is still dangerous and hard to manage. Let's recap what we are doing above to find a new way.</p>
+<p>There are various ways to manage regular pages: freelists, bitmap, etc.. The thing is, we can <strong>manage VPN and PFN simultaneously</strong>, and <strong>pages do not depend on each other</strong>. The hardest point memory management is to manage page tables: higher-level page tables only have PFN of lower level page tables, and they are correlated with each other. Also, although there is only a single Level-4 Page Table, but there is a large number of Level-3, Level-2, and Level 1 page tables we need to manage.</p>
+<p>The graph below shows how we get the VA of PTEs in ordr to manage them:</p>
+<p><img src="pagetables.assets/access.png" alt="access" /></p>
+<p>Above we are trying to <strong>map</strong> the page table, and use a predetermined function to calculate the VPN correspoding to PFN in PTE. The thing is, we are too honest here. We obey all the rules and follow all the steps given by MMU, but MMU are designed for regular pages, not page tables.</p>
+<p>But now, let's a different perspective -- trick the MMU!</p>
+<p>Consider that <strong>page tables are pages</strong> as well, and PTEs in all levels of page tables have the same structure: PFN and flags. In addition, the steps to visit a page:</p>
+<ol>
+<li>Read level 4 page table, index by level 4 VPN, we get PFN of level 3 page table</li>
+<li>Read level 3 page table, index by level 3 VPN, we get PFN of level 2 page table</li>
+<li>Read level 2 page table, index by level 2 VPN, we get PFN of level 1 page table</li>
+<li>Read level 1 page table, index by level 1 VPN, we get PFN of the page</li>
+<li>Access the page, index by offset.</li>
+</ol>
+<p>The MMU always do <strong>4 translations</strong> to get a page. By design, the translation is done in L4, L3, L2 and L1 page table:</p>
+<ul>
+<li>we translate in L4 page table to get L3 address</li>
+<li>we translate in L3 page table to get L2 address</li>
+<li>we translate in L2 page table to get L1 address</li>
+<li>we translate in L1 page table to get page address</li>
+</ul>
+<p>What if we translated in page table <strong>one more time?</strong> Let's find out what the steps become.</p>
+<ol>
+<li>Read level 4 page table, index by level 4 VPN, we get PFN of level <strong>3.5</strong> page table</li>
+<li>Read level <strong>3.5</strong> page table, index by level 3 VPN, we get PFN of level <strong>3</strong> page table</li>
+<li>Read level <strong>3</strong> page table, index by level 2 VPN, we get PFN of level <strong>2</strong> page table</li>
+<li>Read level <strong>2</strong> page table, index by level 1 VPN, we get PFN of level <strong>1</strong> page table</li>
+<li>Access level <strong>1</strong> page table, index by offset.</li>
+</ol>
+<p>If there is a page table set between level 4 page table and level 3 page table, we traveled in the page table one more time, so that <strong>the MMU does not have the chance to translate in level 1 page table</strong>! It thinks, finally after 4 translations, it is at the page we need to visit. It then concatenate PFN and offset to get PA we need to visit. What it doesn't know is, it is still on level 2 page table, and the PFN it gets is the PFN of level 1 page table!</p>
+<p>In this way, without any mapping of page table pages, we can access L1 page table. The only question remained is, what is the level 3.5 page table?</p>
+<p>Of course you can create another page for level 3.5 page table and filling PTE to L3 page tables. But there are already an page table that is full of PTE to L3 page tables: <strong>Level 4 page table</strong>!</p>
+<p>That is to say, there is an PTE in Level 4 page table <strong>that points to itself</strong>. So we called this approach <strong>Recursive Page Table</strong>. The PTE that points to the level 4 page table it self is called <strong>Recursive Entry</strong>. The image below is a visualization of how to visit L1 page table's PTE in recursive page table.</p>
+<p><img src="pagetables.assets/recursive.png" alt="recursive" /></p>
+<p>Since every PTE is 8 bytes, the lower 3 bit of offset must be 0. The higher 9 bits are natually the L1VPN we want to access.</p>
+<p>So if we want to the PTE of VPN <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>4</mn></msub><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>3</mn></msub><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>2</mn></msub><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>1</mn></msub><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\mathrm{vpn}_4, \mathrm{vpn}_3, \mathrm{vpn}_2, \mathrm{vpn}_1]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">4</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">3</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mclose">]</span></span></span></span></code> , we access the address:</p>
+<pre><code class="language-math math-display"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo stretchy="false">[</mo><mtext>recursive_entry</mtext><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>4</mn></msub><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>3</mn></msub><mo separator="true">,</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>2</mn></msub><mo separator="true">,</mo><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">t</mi></mrow><mo>=</mo><msub><mrow><mi mathvariant="normal">v</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">n</mi></mrow><mn>1</mn></msub><mo>×</mo><mn>8</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\textrm{recursive\_entry}, \mathrm{vpn}_4, \mathrm{vpn}_3, \mathrm{vpn}_2, \mathrm{offset}=\mathrm{vpn}_1 \times 8]
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.06em;vertical-align:-0.31em;"></span><span class="mopen">[</span><span class="mord text"><span class="mord textrm">recursive_entry</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">4</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">3</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathrm">offset</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.8275em;vertical-align:-0.2441em;"></span><span class="mord"><span class="mord"><span class="mord mathrm">vpn</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">1</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mclose">]</span></span></span></span></span></code></pre>
+<p>Now we can access level 1 page table. What about level 2, 3, 4? Above we visit L4 page table one more time to delay the access to actual page once. It is easy to imagine that, if we visit L4 page table three times, we can delay the access to actual page twice, so that after 4 translations, we are visiting L2 page table. Let's see if this is the case:</p>
+<ol>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by level 4 VPN, we get PFN of level <strong>3</strong> page table</li>
+<li>Read level <strong>3</strong> page table, index by level 3 VPN, we get PFN of level <strong>2</strong> page table</li>
+<li>Access level <strong>2</strong> page table, index by level 3 VPN.</li>
+</ol>
+<p>That is exactly what we want. Similarly, accessing L4 page table 4 times give us access to L3 page table, and accessing L4 page table 5 times give us access to L4 page table.</p>
+<p><strong>Level 3 Page Table:</strong></p>
+<ol>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by level 4 VPN, we get PFN of level <strong>3</strong> page table</li>
+<li>Access level <strong>3</strong> page table, index by level 3 VPN.</li>
+</ol>
+<p><strong>Level 4 Page Table:</strong></p>
+<ol>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Read level <strong>4</strong> page table, index by recursive entry, we get PFN of level <strong>4</strong> page table</li>
+<li>Access level <strong>4</strong> page table, index by level 4 VPN.</li>
+</ol>
+<p>Suppose the recursive entry is <code>0x1ff</code>, here are some examples of accessing page tables by their virtual address:</p>
+<ol>
+<li>
+<p>Level 4 Page Table, PTE with L4VPN <code>0x3</code>:</p>
+<p><code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x3</mtext><mo>×</mo><mn>8</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x3}\times 8]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x3</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mclose">]</span></span></span></span></code> = <code>0xffff ffff f018</code></p>
+</li>
+<li>
+<p>Level 3 Page Table with L4VPN <code>0x3</code>, PTE with L3VPN<code>0x1d3</code>:</p>
+<p><code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x3</mtext><mo separator="true">,</mo><mtext>0x1d3</mtext><mo>×</mo><mn>8</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x3}, \textrm{0x1d3}\times 8]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x3</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1d3</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mclose">]</span></span></span></span></code> = <code>0xffff ffe0 3e98</code></p>
+</li>
+<li>
+<p>Level 2 Page Table with L4VPN <code>0x3</code>, L3VPN<code>0x1d3</code>, PTE with L2VPN<code>0x1</code>:</p>
+<p><code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x3</mtext><mo separator="true">,</mo><mtext>0x1d3</mtext><mo separator="true">,</mo><mtext>0x1</mtext><mo>×</mo><mn>8</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\textrm{0x1ff}, \textrm{0x1ff}, \textrm{0x3}, \textrm{0x1d3}, \textrm{0x1}\times 8]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x3</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1d3</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mclose">]</span></span></span></span></code> = <code>0xffff c07d 3008</code></p>
+</li>
+<li>
+<p>Level 1 Page Table with L4VPN <code>0x3</code>, L3VPN<code>0x1d3</code>, L2VPN<code>0x1</code>, PTE with L1VPN<code>0xf</code>:</p>
+<p><code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">[</mo><mtext>0x1ff</mtext><mo separator="true">,</mo><mtext>0x3</mtext><mo separator="true">,</mo><mtext>0x1d3</mtext><mo separator="true">,</mo><mtext>0x1</mtext><mo separator="true">,</mo><mtext>0xf</mtext><mo>×</mo><mn>8</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[\textrm{0x1ff}, \textrm{0x3}, \textrm{0x1d3}, \textrm{0x1}, \textrm{0xf}\times 8]</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord text"><span class="mord textrm">0x1ff</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x3</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1d3</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0x1</span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord text"><span class="mord textrm">0xf</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">8</span><span class="mclose">]</span></span></span></span></code> = <code>0xff80 fa60 1078</code></p>
+</li>
+</ol>
+<p>How elegent is a recursive page table! We've mapped all the page tables from different levels without explicitly mapping any of them, and you don't have to track their VPNs anymore! All you need to do is still only two lines of code:</p>
+<pre><code class="language-c">PFN pt4 = palloc();
+*(PTE *)((pt4 &lt;&lt; k) + recursive_entry * sizeof(PTE)) = PTE(pt4);
+</code></pre>
+<h2>User Page Table</h2>
+<p>Now we know how to manage page tables themselves with page tables enabled. But as an OS kernel, our biggest responsibility is to create a virtual address space for user space programs. What are we required to do to manage user virtual address space?</p>
+<ul>
+<li>
+<p><strong>Creating a seperate set of page tables</strong>. Every process have a different mapping from the same virtual address space to different physical address space. So we must create a seperate set of page tables for each process.</p>
+</li>
+<li>
+<p><strong>Marking the user pages as allocated</strong>. We don't want to let other processes and ourselves to corrupt user space data, so the physical pages of both of user space page tables and other user space pages should be marked as allocated.</p>
+</li>
+<li>
+<p><strong>Mapping new pages afterwards if they require more heap space</strong>. If we enable dynamic memory allocation for user space processes, their virtual address space is going to expand or shrink at runtime.</p>
+</li>
+<li>
+<p><strong>Freeing the page tables of a process after it is terminated</strong>. As an OS kernel, we should avoid memory leakage after running for a long time. After a process is killed, its space should be reused by us.</p>
+</li>
+<li>
+<p><strong>Making user space data readable and modifiable for us</strong>.</p>
+<p>This might seems unsafe, but it is a necessary evil. For example, if the process want to print &quot;Hello world&quot;, it should let the kernel know where the string &quot;Hello world&quot; is. The program does it by placing a pointer pointing to the user address space as an argument in the correspondent system call (<a href="https://en.wikipedia.org/wiki/System_call">What is a system call?</a>). As a kernel, we are using kernel address space, and the pointer (e.g. <code>0x12345678</code>), which originally points to an address  in user space, points to some garbage in kernel address space. We should map the user space pages to pages in kernel space, and translate the pointer <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi></mrow><annotation encoding="application/x-tex">p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code> to a new pointer <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>p</mi><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">f(p)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">p</span><span class="mclose">)</span></span></span></span></code>, that correctly points to kernel address space.</p>
+</li>
+</ul>
+<p>Just like what we are doing in recursive page tables, but in this time, there is a real level 3.5 page table here: the user level 4 page table. With a combination of a recursive entry and an entry of user level 4 page table, we can access any level of user page table like this:</p>
+<p><strong>User Level 1 Page Table</strong></p>
+<ol>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>user level 4 page table entry</strong>, we get PFN of <strong>user level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 4</strong> page table, index by user level 4 VPN, we get PFN of <strong>user level 3</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 3</strong> page table, index by user level 3 VPN, we get PFN of <strong>user level 2</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 2</strong> page table, index by user level 2 VPN, we get PFN of <strong>user level 1</strong> page table</p>
+</li>
+<li>
+<p>Access <strong>user level 1</strong> page table, index by user level 1 VPN</p>
+</li>
+</ol>
+<p><strong>User Level 2 Page Table</strong></p>
+<ol>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>user level 4 page table entry</strong>, we get PFN of <strong>user level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 4</strong> page table, index by user level 4 VPN, we get PFN of <strong>user level 3</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 3</strong> page table, index by user level 3 VPN, we get PFN of <strong>user level 2</strong> page table</p>
+</li>
+<li>
+<p>Access <strong>user level 2</strong> page table, index by user level 2 VPN</p>
+</li>
+</ol>
+<p><strong>User Level 3 Page Table</strong></p>
+<ol>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>user level 4 page table entry</strong>, we get PFN of <strong>user level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>user level 4</strong> page table, index by user level 4 VPN, we get PFN of <strong>user level 3</strong> page table</p>
+</li>
+<li>
+<p>Access <strong>user level 3</strong> page table, index by user level 3 VPN</p>
+</li>
+</ol>
+<p><strong>User Level 4 Page Table</strong></p>
+<ol>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>recursive entry</strong>, we get PFN of <strong>kernel level 4</strong> page table</p>
+</li>
+<li>
+<p>Read <strong>kernel level 4</strong> page table, index by <strong>user level 4 page table entry</strong>, we get PFN of <strong>user level 4</strong> page table</p>
+</li>
+<li>
+<p>Access <strong>user level 4</strong> page table, index by user level 4 VPN</p>
+</li>
+</ol>
+<p>Now we have access to all the user page tables. That seems to be a good solution.</p>
+<p>However, since we add one more translation by introducing user level 4 page table entry, we do not have access to the actual pages of user page table.</p>
+<p>Freeing the user pages can be a major problem. with only access to PFN of user pages, we cannot access the data in actual user pages, and we are not able to free them if we are using freelist. What's worse, creating a free node in user page table pages will corrupt them, making lower level page tables inaccessible.</p>
+<p><img src="pagetables.assets/recursive_problem.png" alt="recursive problem" /></p>
+<p>The core problem is that we must access the user page table in a way without user page table. In other word, a physical user page is <strong>mapped twice</strong>: from user virtual address space <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>u</mi></msub><mo>→</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">v_u\to p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">u</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code>, and in kernel virtual address space <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub><mo>→</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">v_k\to p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code>.</p>
+<img src="pagetables.assets/user.png" alt="user_kernel" style="zoom:50%;" />
+<p>How?</p>
+<h3>Temporary Mapping</h3>
+<p>The first approach is really simple:</p>
+<ol>
+<li>Get the PA <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi></mrow><annotation encoding="application/x-tex">p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code> of a user VA <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>u</mi></msub></mrow><annotation encoding="application/x-tex">v_u</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">u</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> by recursive page table with user l4pt entry</li>
+<li>Get a free VA <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> from kernel space.</li>
+<li>map <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub><mo>→</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">v_k\to p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code></li>
+</ol>
+<p>It is really simple, but the drawback is that we do not have a structre for storing <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code>. As we have done visiting the user page by <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code>, we should unmap it as soon as possible, since we cannot get <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> from <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>u</mi></msub></mrow><annotation encoding="application/x-tex">v_u</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">u</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> and <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi></mrow><annotation encoding="application/x-tex">p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code> anymore. So, this approach is called <strong>Temporary Mapping</strong>.</p>
+<p>That disables us to free all page tables and regular user pages entirely: we either can't free them, or can't reuse them after they are free.</p>
+<h3>Inverted Page Table</h3>
+<p>To be honest, what we do here is still temporary mapping, but we can organize the structure of <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> so that we can retrieve them afterwards.</p>
+<p>Since we can retrieve the PA by walk through recursive page table with user l4pt entry (<code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>u</mi></msub><mo>→</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">v_u \to p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">u</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code>), if there is a structure that stores the map <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>→</mo><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">p\to v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">→</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code>, we now have a way to get <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> from <code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>u</mi></msub></mrow><annotation encoding="application/x-tex">v_u</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">u</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code> (although it is a little convoluted).</p>
+<p>Consider that there is no essential difference between virtual address space and physical address space, and we can use a page table to map VA to PA. Why can't we use a page table to map PA (<code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi></mrow><annotation encoding="application/x-tex">p</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal">p</span></span></span></span></code>) to VA (<code class="language-math math-inline"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>v</mi><mi>k</mi></msub></mrow><annotation encoding="application/x-tex">v_k</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.5806em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">v</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0359em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.03148em;">k</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></code>)?  This page table is naturally called <strong>Inverted Page Table</strong>.</p>
+<p>All the techniques of shrinking page tables can be used for inverted page table: segmentation, multi-layer, etc.. We can also exploit the property of physical address space -- (mostly) contiguous and small -- to invent more structures: mixed page table with hash table, ...</p>
+<p>The method of inverted page table tells us, <strong>Page tables are just data structures.</strong> We can modify them whatever we want, and combine them with other data structures to make them more suitable for the situation we are in.</p>
+<p>The only difference between page tables and inverted PTs is, there is no hardware like MMU to automate this process for us, we must implement the walking process in software by ourselves. But the process is literally just replace PFN with VPN, and replace VPN with PFN:</p>
+<ol>
+<li>Read level 4 inverted page table, index by level 4 PFN, we get VPN of level 3 inverted page table</li>
+<li>Read level 3 inverted page table, index by level 3 PFN, we get VPN of level 2 inverted page table</li>
+<li>Read level 2 inverted page table, index by level 2 PFN, we get VPN of level 1 inverted page table</li>
+<li>Read level 1 inverted page table, index by level 1 PFN, we get kernel VPN of the page</li>
+<li>Access the page by kernel VPN, index by offset.</li>
+</ol>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Page Tables are Easy... Or Are They?</a>
+                        &copy; 2024
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                        <i class="fa-brands fa-creative-commons-sa"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

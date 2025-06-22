@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Underneath Docker (0): Write a Minimal Container Engine in C!</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Underneath Docker (0): Write a Minimal Container Engine in C!</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2023-08-01T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                        CC BY 4.0
+                    </a>
+            </div>
+            <blockquote>
+<p><strong>Prerequisites</strong>: C Programming Language</p>
+</blockquote>
+<p>For researching propose, I was diving into Docker and other containerization techniques. After a while, I was so astonished by the principles underneath it, and I decided to implement a minimal container engine in C. Huge shoutout to Bilibili uploader <a href="https://space.bilibili.com/623241390">造轮子的工程师</a> and his series <a href="https://www.bilibili.com/video/BV1tB4y1S7nr/">Reinventing the Wheel: writing Docker from stratch</a> for giving me great inspiration to this series.</p>
+<p>This series is in Chinese (Simplified) and English (US), and I would update them simutaneously. A requirement is Linux (not even Unix-like kernels like darwin / bsd), but it can work on any architecture.</p>
+<h3>What is Docker?</h3>
+<p><strong>Containerization</strong>, just like its older brother virtualization, is a technique for <strong>environment isolation</strong>. It might seem familiar for software developers, but why we need isolation techneques?</p>
+<p>Almost all software is composed of three parts:</p>
+<ol>
+<li>Executable, including static library</li>
+<li>Shared library, also known as dynamic link library <code>*.so</code></li>
+<li>Other files, such as config, cache, and persistent storage</li>
+</ol>
+<p>The appearance of shared libraries avoids the need for executables to link large and necessary static library files, such as <code>libc</code>, <code>openssl</code>, etc., making the software smaller in size and easier to distribute.</p>
+<p>When the operating system runs an executable, it first loads the dynamic linker <code>ld-linux.so.2</code> into memory, and then executes the code within. The dynamic linker finds and loads the required shared library into memory. It then translates the program's references to symbols in the shared library, to the corresponding memory addresses of those symbols in the shared library, at which point the program can use the functions and other symbols defined in the dynamic link library normally.</p>
+<p>At this point, some problems may arise. What if you download the required executable, but you don't have the necessary shared library?  In large programs that require other executables, config files, etc., and they need to be in specific locations, what should be done? What if a bunch of programs have conflicting dependencies because of version issues?</p>
+<p><strong>Virtualization</strong> technology was born to solve the problem. Virtualization technology allows multiple isolated operating systems, known as <strong>virtual machines</strong> (Virtual Machine, VM), to run on a single hardware infrastructure, and allows communication between them through networking.</p>
+<p>Built directly on hardware, the operating system that manages VMs is called a <strong>hypervisor</strong>. Hypervisors can also be implemented through user programs on general operating systems, referred to as type-2 hypervisors. Common hypervisors include:</p>
+<ol>
+<li><a href="https://www.linux-kvm.org/page/Main_Page">KVM</a> (Kernel-based Virtual Machine), open-sourced, part of Linux kernel</li>
+<li>VMWare® ESXi™, proprietary, enterprise-level Type-1 Hypervisor</li>
+<li>VMWare® Workstation, proprietary, workstation level Type-2 Hypervisor</li>
+<li>Microsoft® Hyper-V</li>
+</ol>
+<p>Hypervisors abstract hardware resources into a unified interface (such as <a href="https://www.linux-kvm.org/page/Virtio">VirtIO</a>), allowing the operating system above to run on different hardware. Program distributors only need to package the operating system, dependencies, and programs into a VM image, which can then be distributed to different Infrastructures, and even different hypervisors that are compatible with each other. <strong>It is worth noting that</strong> since a binary made of instructions cannot run across different architectures, all pre-compiled operating systems and VM images also cannot run on different architectures. This forms the following architecture:</p>
+<p><img src="UD1_zh_CN.assets/VM.svg" alt="" /></p>
+<p>In this way, each VM carries a complete operating system, allowing different operating systems, different ABIs (Application Binary Interface, <a href="https://en.wikipedia.org/wiki/Application_binary_interface">What is ABI? What is API?</a>), different calling conventions, but software using the same instruction set to run on a single hardware, greatly increasing flexibility and portability.</p>
+<p>However, in actual production environments, the vast majority of software is based on the Linux kernel and uses Linux's ELF ABI. Thus, having an operating system kernel in each VM seems  to be unnecessary and can waste significant system resources. Why not build isolated systems on the Linux kernel itself? The idea of containerization was born from this.</p>
+<p>Setting aside the VM's bottom-up approach, which aims to abstract underlying infrastructures as much as possible for better compatibility; we use a top-down approach, focusing on how to achieve isolation between containers using the fewest resources possible.</p>
+<ol>
+<li>We need an isolated <strong>filesystem</strong>, otherwise it can lead to dependency version conflicts, file disruptions, etc.</li>
+<li>We need isolated <strong>processes and PID space</strong>, to make processes in other containers invisible to the current container, avoiding conflicts between some software.</li>
+<li>We need isolated <strong>user groups</strong> to prevent users in one container from having higher privileges to manipulate other containers.</li>
+<li>We need isolated <strong>IPC (Inter-Process Communication)</strong> and signal queues to prevent communication between containers through IPC.</li>
+<li>We need isolated <strong>network stacks</strong> and routing tables, etc., to ensure containers can communicate through the network and with the outside world.</li>
+<li>We need isolated <strong>hostnames</strong>.</li>
+</ol>
+<p>Due to Linux's philosophy that everything is a file, isolating the file system is paramount; other parts are largely about creating corresponding files in the isolated file system, such as <code>/proc</code> for storing isolated process space, <code>/etc/hostname</code> for storing host names, etc.</p>
+<p>Fortunately, Linux kernel's <strong>namespaces</strong> make all this isolation possible. Linux can create several independent namespaces for the above six aspects, and each aspect of a process can run in one namespace; thus, we just need to assign all the processes inside a container to the same namespaces, and have different namespaces between containers. Note that I have used the plural form of namespace here to emphasize that each aspect's Namespace is independent.</p>
+<h3>Step 1: Run programs</h3>
+<p>In Linux, all processes have a parent process, and creating a child process through the <code>fork()</code> method inherits the parent process's namespaces. All processes are descendants of the process with PID=1, named <code>init</code>, so without intervention, all processes are in the same namespaces. You can use <code>ps aux</code> to check the process table.</p>
+<pre><code class="language-bash">[endaytrer@endaytrer-arch ~]$ ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.0  23288 14520 ?        Ss   Aug13   0:01 /sbin/init
+root           2  0.0  0.0      0     0 ?        S    Aug13   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [rcu_gp]
+root           4  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [rcu_par_gp]
+root           5  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [slub_flushwq]
+root           6  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [netns]
+root           8  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [kworker/0:0H-kblockd]
+root          11  0.0  0.0      0     0 ?        I&lt;   Aug13   0:00 [mm_percpu_wq]
+root          13  0.0  0.0      0     0 ?        I    Aug13   0:00 [rcu_tasks_kthread]
+root          14  0.0  0.0      0     0 ?        I    Aug13   0:00 [rcu_tasks_rude_kthread]
+root          15  0.0  0.0      0     0 ?        I    Aug13   0:00 [rcu_tasks_trace_kthread]
+root          16  0.0  0.0      0     0 ?        S    Aug13   0:00 [ksoftirqd/0]
+root          17  0.0  0.0      0     0 ?        I    Aug13   0:07 [rcu_preempt]
+root          18  0.0  0.0      0     0 ?        S    Aug13   0:00 [rcub/0]
+</code></pre>
+<p>所以, 为达到隔离的效果, 只需创建一个根进程, 并将其namespaces设置为新的namespaces即可. 如果根进程为shell, 则可以通过命令行的方式在此上面新建新的进程, 并且在同样的namespaces中.</p>
+<p>在隔离namespaces之前, 试一下通过最简单的方式创建一个新的进程吧!</p>
+<p>So, to achieve isolation, you only need to create a root process and set its namespaces to newly-created namespaces. If the root process is a shell, you can create new processes as its descendent via the command line, and they will be in the same namespaces.</p>
+<p>Before isolating namespaces, try creating a new process in the simplest way possible!</p>
+<pre><code class="language-c">#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdio.h&gt;
+
+int main() {
+    pid_t pid = fork();
+    if (pid &lt; 0) {
+        fprintf(stderr, &quot;Fork failed!\n&quot;);
+        return -1;
+    }
+    if (pid == 0) {
+        // child process
+        printf(&quot;I am the child!\n&quot;);
+        sleep(1);
+        printf(&quot;Child is terminating!\n&quot;);
+        return 0;
+    }
+    // parent process
+    pid_t parent_pid = getpid();
+    printf(&quot;I am the parent with pid %d! &quot;, parent_pid);
+  	printf(&quot;the child's pid is %d\n&quot;, pid);
+    wait(NULL);
+    printf(&quot;Child exited.\n&quot;);
+    return 0;
+}
+</code></pre>
+<p>The <code>fork()</code> function is a <strong>call once, return twice</strong> function. If an error occurs, the process will not be created, and it returns <code>-1</code>. Otherwise, it will <strong>return separately in the parent process and the child process</strong>: the <strong>parent process</strong> returns the <strong>child process's PID</strong>, and the <strong>child process</strong> returns <strong>0</strong>. The following diagram illustrates the relationship between calls:</p>
+<p><img src="UD1_zh_CN.assets/FORK.svg" alt="" /></p>
+<p>After calling <code>fork()</code>, the parent process skips the &quot;if&quot; statement because <code>pid &gt; 0</code>, directly executing <code>getpid</code> to get the parent process PID; the child process enters the if statement because <code>pid == 0</code>, executing the content inside the if statement.</p>
+<p>Using the <code>wait()</code> syscall, the parent process will wait for the child process to finish before continuing to execute; <code>wait</code> also returns the child process's return code, which can be used to determine whether the child process has exited normally.</p>
+<pre><code class="language-bash">$ gcc -o main main.c
+$ ./main
+I am the parent with pid 67936! the child's pid is 67937
+I am the child!
+Child is terminating!
+Child exited.
+</code></pre>
+<p>After <code>fork</code>, the child process still executes the same program code; it needs to use <code>exec()</code> to run another executable file. The <code>exec</code> syscall corresponds to many functions in libc, such as <code>execl, execlp, execle, execv, execvp, execvpe</code>. In this case, the function used is <code>int execv(const char *pathname, char *const argv[])</code>, which executes the program specified by <code>pathname</code>, and passes in the argument vector <code>argv</code>.</p>
+<pre><code class="language-c">#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdio.h&gt;
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1) {
+        fprintf(stderr, &quot;Usage: main PROGRAM [args]\n&quot;);
+        return -1;
+    }
+    pid_t pid = fork();
+    if (pid &lt; 0) {
+        fprintf(stderr, &quot;Fork failed!\n&quot;);
+        return -1;
+    }
+    if (pid == 0) {
+        // child process
+        printf(&quot;I am the child!\n&quot;);
+        execv(argv[1], argv + 1);
+        fprintf(stderr, &quot;Exec failed!\n&quot;);
+        return -1;
+    }
+    // parent process
+    pid_t parent_pid = getpid();
+    printf(&quot;I am the parent with pid %d! &quot;, parent_pid);
+  	printf(&quot;the child's pid is %d\n&quot;, pid);
+    wait(NULL);
+    printf(&quot;Child exited.\n&quot;);
+    return 0;
+}
+</code></pre>
+<p>Here, we introduce <code>int argc</code> and <code>char *argv[]</code>, and use <code>argv[1]</code> as the program path. Here, <code>argv + 1</code> points to the first position of argv (counting from 0). This way, using <code>main /bin/ps aux</code> is equivalent to running <code>/bin/ps</code>, with the argument list <code>[&quot;/bin/ps&quot;, &quot;aux&quot;]</code>.</p>
+<p>The characteristic of the <code>exec()</code> family of functions is that they are <strong>called once, never return</strong>. If an error occurs, the process will not be created and will return. Otherwise, the current process will execute the specified program. Since the program being executed is no longer the original program, if there are no errors, the code after <code>exec()</code> will not be executed. By contrast, the parent process skips the <code>if</code> code block and continue to wait for the child process to end using the <code>wait</code> method.</p>
+<pre><code class="language-bash">$ gcc -o main main.c
+$ ./main /bin/ps aux
+I am the parent with pid 70096! the child's pid is 70097
+I am the child!
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.2 178136  9536 ?        Ss   Aug11   0:06 /sbin/init
+root           2  0.0  0.0      0     0 ?        S    Aug11   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_gp]
+root           4  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_par_gp]
+root           5  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [slub_flushwq]
+root           6  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [netns]
+...
+endaytr+   70096  0.0  0.0   2200   760 pts/3    S+   00:57   0:00 ./main /bin/ps aux
+endaytr+   70097  100  0.1  11268  4432 pts/3    R+   00:57   0:00 /bin/ps aux
+Child exited.
+</code></pre>
+<h3>Use <code>clone</code> Instead of <code>fork</code> to Setup Namespaces</h3>
+<p>After using <code>fork</code> and <code>exec</code> to create a process, you can use <code>clone</code> with a namespace flag as a replacement for <code>fork</code>.</p>
+<p>The difference between <code>clone</code> and <code>fork</code> is that <code>clone</code> requires manually setting the child process's stack space, and you must pass the flag <code>SIGCHLD</code> to declare it as a child process. At the same time, unlike <code>fork</code>, which returns twice, <code>clone</code> will pass a function pointer for the child process to run: the child process no longer returns to the calling function but directly executes the passed-in function.</p>
+<pre><code class="language-c">int clone(int (*fn)(void *_Nullable), void *stack, int flags, void *_Nullable arg)
+</code></pre>
+<p>When calling <code>clone</code>, the child process goes into the function <code>fn</code> and accepts the parameters passed from <code>void *_Nullable arg</code>, using <code>stack</code> as the top of the stack. The function in the parent process returns the child process's pid.</p>
+<p>When allocating stack space for the child process, you need to use <code>mmap</code> to create the stack space (usually 1MiB), and then use a pointer to point to the highest address of this space. Then this pointer can be passed into the <code>clone</code> parameters:</p>
+<pre><code class="language-c">void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+</code></pre>
+<p>With slight modifications to the other parts, you can implement the <code>clone</code> version of the program:</p>
+<pre><code class="language-c">#define _GNU_SOURCE
+#include &lt;sched.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#define STACK_SIZE 0x100000
+
+int child(void *arg) {
+    printf(&quot;I am the child!\n&quot;);
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    fprintf(stderr, &quot;Exec failed!\n&quot;);
+    return -1;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1) {
+        fprintf(stderr, &quot;Usage: main PROGRAM [args]\n&quot;);
+        return -1;
+    }
+    void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+    int clone_flags = SIGCHLD;
+    int pid;
+    if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0) {
+        fprintf(stderr, &quot;Clone failed!\n&quot;);
+        return -1;
+    }
+    // parent process
+    pid_t parent_pid = getpid();
+    printf(&quot;I am the parent with pid %d! &quot;, parent_pid);
+  	printf(&quot;the child's pid is %d\n&quot;, pid);
+    wait(NULL);
+    printf(&quot;Child exited.\n&quot;);
+    return 0;
+}
+</code></pre>
+<p>The result is the same as <code>fork</code> version.</p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Underneath Docker (0): Write a Minimal Container Engine in C!</a>
+                        &copy; 2023
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

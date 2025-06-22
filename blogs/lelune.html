@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Le Lune</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Le Lune</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2024-04-11T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by-sa/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                            <i class="fa-brands fa-creative-commons-sa"></i>
+                        CC BY-SA 4.0
+                    </a>
+            </div>
+            <p><img src="./lelune.assets/manual1.jpg" alt="img" /></p>
+<p><img src="./lelune.assets/manual0.jpg" alt="img" /></p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Le Lune</a>
+                        &copy; 2024
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                        <i class="fa-brands fa-creative-commons-sa"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

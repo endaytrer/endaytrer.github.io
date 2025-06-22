@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Underneath Docker (1): Isolated Filesystem</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Underneath Docker (1): Isolated Filesystem</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2023-08-02T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                        CC BY 4.0
+                    </a>
+            </div>
+            <blockquote>
+<p><strong>Prerequisites</strong>: C Programming Language</p>
+</blockquote>
+<p>In <a href="#UD1_en_US,md">Underneath Docker (0)</a>, we successfully implemented a program to run other programs, but there is no isolations so far. So this time, we will implement the basis of all isolations: <strong>isolated filesystem</strong>.</p>
+<h3>Cleanup &amp; Makefile</h3>
+<p>We are left with a messy code base from episode 0, so let's make it more like a formal project.</p>
+<p>First, let's add a <strong>Makefile</strong>, so that we can avoid typing <code>gcc -o main main.c</code> all the time.</p>
+<pre><code class="language-makefile"># Makefile
+CC = gcc
+LD = gcc
+CFLAGS = -g -O0
+
+OBJS = main.o
+TARGET = mini-container
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
+
+clean:
+	rm -f $(TARGET) $(OBJS)
+</code></pre>
+<p>This is a pretty standard C makefile, but for those who is not familiar with makefiles, here is a glimpse about how makefile works.</p>
+<p>First off, we use <code>XX = y</code>to define aliases, so whenever you see <code>$(XX)</code>, replace it with <code>y</code>. We have not defined <code>LDFLAGS</code> yet, so <code>$(LDFLAGS)</code> is left empty.</p>
+<p>The basic syntax other than alias definition, a.k.a &quot;rules&quot;, is like this:</p>
+<pre><code class="language-makefile">target: dependency list
+	commands to build target
+</code></pre>
+<p>Which means:</p>
+<blockquote>
+<p>In order to build <code>target</code>, build <code>dependency list</code> using rules recursively. then, execute the <code>commands to build target</code> below it to build target.</p>
+</blockquote>
+<p>And there are two more aliases not explained yet: <code>$@</code> and <code>$^</code>, simply means <code>target</code> and <code>dependency list</code> respectively.</p>
+<p><code>%</code> in <code>target</code> and <code>dependency list</code> means <strong>wildcard</strong>, and they must represent exactly the same thing in <code>target</code> and <code>dependency list</code>.</p>
+<p>So, the rule <code>$(TARGET): $(OBJS)</code> can be explained as:</p>
+<blockquote>
+<p>In order to build <code>mini-container</code>, build <code>main.o</code> first.</p>
+</blockquote>
+<p>Then <code>make</code> tries to find rules to make <code>main.o</code>. We have not defined rules like <code>main.o: main.c</code>, but we have a wildcard <code>%.o: %.c</code>, so it tries to find the C file with same prefix <code>main.c</code>. After expanding the aliases, the rule translate into:</p>
+<blockquote>
+<p>In order to build <code>main.o</code>, build <code>main.c</code> first. then, execute <code>gcc -g -O0 -c -o main.o main.c</code>.</p>
+</blockquote>
+<p>Since we have <code>main.c</code> in the project directory, we do not need rules to build it. It then use the command after it to make <code>main.o</code>.</p>
+<p>After having <code>main.o</code>, we can finally make <code>mini-container</code>, a.k.a. the <code>TARGET</code>, since we have all dependencies fulfilled. The <code>command to build target</code> part of the rule <code>$(TARGET): $(OBJS)</code>  is:</p>
+<pre><code class="language-bash">gcc -o mini-container main.o
+</code></pre>
+<p>The very first <code>.PHONY</code> means, the items in <code>dependency list</code> are not real files that we need to build. So, we are not building a file called <code>all</code> or <code>clean</code>, we are just building all targets, or cleaning the output of building. <code>.PHONY</code> is also not a target to build, not even a rule.</p>
+<p>The last thing to mention is that by default, using <code>make</code> builds the very first rule in makefile. in this case, the first rule to build is <code>all</code>, which has dependency <code>$(TARGET)</code>, or <code>mini-container</code>.</p>
+<h4>Refactoring</h4>
+<p>We use a lot of error procedures in last episode: printing error, then return -1. We can use a macro to make it simpler.</p>
+<pre><code class="language-c">#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+</code></pre>
+<p>We use a <code>do ... while(0)</code> wrapper, so that it can be treat like one single sentence. So, this can be used after <code>if</code>, even if there are no braces surround it. I did not add a semicolon after <code>while(0)</code>, so that we have to add it after <code>ERR</code>, making it feels more like a function.</p>
+<pre><code class="language-c">if (argc &lt;= 1)
+    ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);    
+</code></pre>
+<p>Since we've learned the principles, we don't need those <code>printf</code>s for debugging anymore. Now, we have a clean codebase.</p>
+<pre><code class="language-c">// main.c
+#define _GNU_SOURCE
+#include &lt;sched.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#define STACK_SIZE 0x100000
+
+#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+
+
+int child(void *arg) {
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1)
+        ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);
+    
+    void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    
+    if (child_stack == MAP_FAILED)
+        ERR(&quot;Mmap failed!\n&quot;);
+    
+    void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+    int clone_flags = SIGCHLD;
+    int pid;
+
+    if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0)
+        ERR(&quot;Clone failed!\n&quot;);
+    
+    // parent process
+    if (wait(NULL) &lt; 0)
+        ERR(&quot;Wait failed!\n&quot;);
+    
+    return 0;
+}
+</code></pre>
+<h3>Isolated Mounting Namespace</h3>
+<p>We have introduced <strong>6 isolations</strong> in last episode: <strong>filesystem</strong>, <strong>process</strong>, <strong>user</strong>, <strong>IPC</strong>, <strong>network</strong>, <strong>hostname</strong>. Their namespaces and flags in <code>clone</code> syscall is listed below:</p>
+<table>
+<thead>
+<tr>
+<th>Isolation</th>
+<th>Linux namespace</th>
+<th><code>clone</code> flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filesystem</td>
+<td><strong>Mount Namespace</strong></td>
+<td><code>CLONE_NEWNS</code></td>
+</tr>
+<tr>
+<td>Process</td>
+<td><strong>PID Namespace</strong></td>
+<td><code>CLONE_NEWPID</code></td>
+</tr>
+<tr>
+<td>User</td>
+<td><strong>User Namespace</strong></td>
+<td><code>CLONE_NEWUSER</code></td>
+</tr>
+<tr>
+<td>IPC</td>
+<td><strong>IPC Namespace</strong></td>
+<td><code>CLONE_NEWIPC</code></td>
+</tr>
+<tr>
+<td>Network</td>
+<td><strong>Network Namespace</strong></td>
+<td><code>CLONE_NEWNET</code></td>
+</tr>
+<tr>
+<td>Hostname</td>
+<td><strong>UTS Namespace</strong></td>
+<td><code>CLONE_NEWUTS</code></td>
+</tr>
+</tbody>
+</table>
+<p>Let's first add a new mount namespace to <code>clone</code> call:</p>
+<pre><code class="language-c">// main.c
+int clone_flags = CLONE_NEWNS | SIGCHLD;
+int pid = clone(child, stack_top, clone_flags, (void *)(argv + 1));
+</code></pre>
+<p>Now, we need <code>sudo</code> privilege to run our program, since new namespaces are not allowed to be created without <code>root</code>.</p>
+<pre><code class="language-bash">$ make
+gcc -g -O0 -c -o main.o main.c
+gcc  -o mini-container main.o
+$ sudo ./mini-container /bin/ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.2 178136 11576 ?        Ss   Aug11   0:07 /sbin/init
+root           2  0.0  0.0      0     0 ?        S    Aug11   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_gp]
+root           4  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_par_gp]
+root           5  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [slub_flushwq]
+root           6  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [netns]
+root          10  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [mm_percpu_wq]
+...
+root       81780  0.0  0.1  10728  4216 pts/2    S+   07:50   0:00 sudo ./mini-container /bin/ps aux
+root       81781  0.0  0.0  10728   484 pts/3    Ss   07:50   0:00 sudo ./mini-container /bin/ps aux
+root       81782  0.0  0.0   3084   752 pts/3    S+   07:50   0:00 ./mini-container /bin/ps aux
+root       81783  0.0  0.1  11268  4448 pts/3    R+   07:50   0:00 /bin/ps aux
+</code></pre>
+<p>We have set up a new namespace, but we did not change anything. let's change its filesystem mounting point to <code>./rootfs</code> using <code>chroot()</code>. One more step is to change the directory to root <code>/</code> using <code>chdir</code>, otherwise the present working directory cannot be found in our new <code>rootfs</code></p>
+<pre><code class="language-shell">$ mkdir rootfs
+</code></pre>
+<pre><code class="language-c">// main.c
+int child(void *arg) {
+    // mount &quot;./rootfs&quot; as filesystem root
+    if (chroot(&quot;rootfs&quot;) &lt; 0)
+        ERR(&quot;chroot failed!&quot;);
+
+    // change directory to &quot;/&quot;
+    if (chdir(&quot;/&quot;) &lt; 0)
+        ERR(&quot;chdir failed!&quot;);
+        
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+</code></pre>
+<p>Let's try again.</p>
+<pre><code class="language-bash">$ sudo ./mini-container /bin/ps aux
+Exec failed!
+</code></pre>
+<p>We cannot call exec anymore! The reason is that we have changed our filesystem root to an empty directory, and it cannot find <code>/bin/ps</code> anymore. To keep it simple, we will run <code>/bin/bash</code> and <code>/bin/ls</code>instead of <code>/bin/ps</code>, Let's fix that by adding all the necessary files of <code>/bin/bash</code> and <code>/bin/ls</code>.</p>
+<pre><code class="language-bash">$ mkdir -p rootfs/bin
+$ sudo cp /bin/bash /bin/ls rootfs/bin/
+</code></pre>
+<p>To find the shared library dependencies, use <code>ldd</code>:</p>
+<pre><code class="language-bash">$ ldd rootfs/bin/bash
+        linux-vdso.so.1 (0x0000ffff9a665000)
+        libtinfo.so.6 =&gt; /lib/aarch64-linux-gnu/libtinfo.so.6 (0x0000ffff9a460000)
+        libc.so.6 =&gt; /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffff9a2b0000)
+        /lib/ld-linux-aarch64.so.1 (0x0000ffff9a628000)
+</code></pre>
+<p>第一行所展示的<code>linux-vdso.so.1</code>是一个虚拟的共享库, 并不再实际的文件系统中存在, 我们只需要处理其他的共享库即可.</p>
+<p><code>linux-vdso.so.1</code> shown in first line is a virtual shared library, which does not exist in real filesystems. We only have to deal with the remaining shared libraries.</p>
+<p>Notice that libraries in different architecture and distributions have different locations. Copy and paste all dependencies in corresponding place in <code>rootfs/</code>. <strong>Don't copy these commands, write on your own.</strong></p>
+<pre><code class="language-bash">$ mkdir -p rootfs/bin rootfs/lib rootfs/lib/aarch64-linux-gnu
+$ sudo cp /lib/aarch64-linux-gnu/libtinfo.so.6 \
+	/lib/aarch64-linux-gnu/libc.so.6 \
+	/lib/aarch64-linux-gnu/libselinux.so.1 \
+	/lib/aarch64-linux-gnu/libpcre2-8.so.0 \
+	rootfs/lib/aarch64-linux-gnu/
+$ sudo cp /lib/ld-linux-aarch64.so.1 rootfs/lib/
+</code></pre>
+<p>Now <code>bash</code> and <code>ls</code> works!</p>
+<pre><code class="language-bash">$ make
+gcc -g -O0 -c -o main.o main.c
+gcc  -o mini-container main.o
+$ sudo ./mini-container /bin/bash
+bash-5.2# ls
+bin  lib
+bash-5.2# ls -alh
+total 16K
+drwxr-xr-x 4 1000 1000 4.0K Aug 14 13:00 .
+drwxr-xr-x 4 1000 1000 4.0K Aug 14 13:00 ..
+drwxr-xr-x 2 1000 1000 4.0K Aug 14 13:01 bin
+drwxr-xr-x 3 1000 1000 4.0K Aug 14 13:07 lib
+bash-5.2# 
+</code></pre>
+<p>Here is the code of filesystem isolation:</p>
+<pre><code class="language-c">// main.c
+#define _GNU_SOURCE
+#include &lt;sched.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#define STACK_SIZE 0x100000
+
+#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+
+
+int child(void *arg) {
+    // mount &quot;./rootfs&quot; as filesystem root
+    if (chroot(&quot;rootfs&quot;) &lt; 0)
+        ERR(&quot;chroot failed!&quot;);
+
+    // change directory to &quot;/&quot;
+    if (chdir(&quot;/&quot;) &lt; 0)
+        ERR(&quot;chdir failed!&quot;);
+
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1)
+        ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);
+    
+    void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    
+    if (child_stack == MAP_FAILED)
+        ERR(&quot;Mmap failed!\n&quot;);
+    
+    void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+    // create new mount namespace
+    int clone_flags = CLONE_NEWNS | SIGCHLD;
+    int pid;
+
+    if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0) {
+        printf(&quot;%d\n&quot;, pid);
+        ERR(&quot;Clone failed!\n&quot;);
+    }
+    
+    // parent process
+    if (wait(NULL) &lt; 0)
+        ERR(&quot;Wait failed!\n&quot;);
+    
+    return 0;
+}
+</code></pre>
+<p>Now we have a working isolated filesystem. In next episode, let's make it more isolated using other namespaces!</p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Underneath Docker (1): Isolated Filesystem</a>
+                        &copy; 2023
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

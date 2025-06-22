@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Blog Update #2</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Blog Update #2</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2024-02-25T00:00:00+08:00"></time></div>
+                    <div class="tag-container"><i class="fa-solid fa-tags"></i>
+                            <a class="tag" href="/blogs.html?tags=misc"><b>#</b> misc</a>
+                    </div>
+                    <a class="license" href="https://creativecommons.org/publicdomain/zero/1.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-zero"></i>
+                        CC0 1.0
+                    </a>
+            </div>
+            <p>今天终于把好久之前就想做，但鸽了特别久的Blog License、密码和列表翻页做出来了。作为我的第11篇博客（也是第一篇需要翻页的博客），做的还比较草率（Tag目前只是写着玩玩，没有实际作用；然后等我做到100篇之后再加页数跳转吧），我想是能用就行。</p>
+<p>这篇Update我用的是中文，也代表我会把这个博客从纯学术、计算机的方向拓展到各种奇奇怪怪的方面，比如朋友圈和Instagram <a href="https://www.instagram.com/endaytrer/">@endaytrer</a>的同步跟新、花絮，以及原照片（我想以CC BY-SA的方式自由地共享、交流、学习），还有e、不e的时候发的疯（看心情加密码）。</p>
+<p>不过这个密码做的很简单就是了。单单用前端是没法获取，欢迎通过包括但不仅限于暴力 / SQL注入 / 人际交往工程（bushi） 的方式猜密码。</p>
+<p>这个用的是CC Zero的协议，只是想试试这个协议看起来怎么样。不会真有人用我写的这段吧？</p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Blog Update #2</a>
+                    by Daniel Gu
+                        is marked
+                    <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0
+                        <i class="fa-brands fa-creative-commons-zero"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

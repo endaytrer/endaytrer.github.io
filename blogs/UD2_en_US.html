@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Underneath Docker (1): Isolate Everything</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Underneath Docker (1): Isolate Everything</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2023-08-03T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                        CC BY 4.0
+                    </a>
+            </div>
+            <blockquote>
+<p><strong>Prerequisites</strong>: C Programming Language</p>
+</blockquote>
+<p>In <a href="#UD01_en_US,md">Underneath Docker (1)</a>, we have an isolated filesystem for the command we run. Now, let's isolate everything.</p>
+<h3>PID Namespace</h3>
+<p>Let's recap the namespaces and its flags first:</p>
+<table>
+<thead>
+<tr>
+<th>Isolation</th>
+<th>Linux namespace</th>
+<th><code>clone</code> flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filesystem</td>
+<td><strong>Mount Namespace</strong></td>
+<td><code>CLONE_NEWNS</code></td>
+</tr>
+<tr>
+<td>Process</td>
+<td><strong>PID Namespace</strong></td>
+<td><code>CLONE_NEWPID</code></td>
+</tr>
+<tr>
+<td>User</td>
+<td><strong>User Namespace</strong></td>
+<td><code>CLONE_NEWUSER</code></td>
+</tr>
+<tr>
+<td>IPC</td>
+<td><strong>IPC Namespace</strong></td>
+<td><code>CLONE_NEWIPC</code></td>
+</tr>
+<tr>
+<td>Network</td>
+<td><strong>Network Namespace</strong></td>
+<td><code>CLONE_NEWNET</code></td>
+</tr>
+<tr>
+<td>Hostname</td>
+<td><strong>UTS Namespace</strong></td>
+<td><code>CLONE_NEWUTS</code></td>
+</tr>
+</tbody>
+</table>
+<p>We set the corresponding flags all at once first:</p>
+<pre><code class="language-c">// main.c
+
+// create new namespaces
+int clone_flags = CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWUSER | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWUTS | SIGCHLD;
+</code></pre>
+<p>The introduction of <code>CLONE_NEWUSER</code> eliminate the need of sudo when using <code>mini-container</code>, which brings a lot of convenience.</p>
+<p>In addition to <code>CLONE_NEWPID</code> flag, we have to mount the processes into the filesystem at <code>/proc</code> as well.</p>
+<p>Since everything is a file in Linux, programs like <code>ps</code> accesses process information by reading files under <code>/proc</code>. But how to let <code>/proc</code> be filled with process information?</p>
+<p>The answer is, just like mounting a disk to some point, we mount the process table with <code>mount()</code>. With this syscall:</p>
+<pre><code class="language-c">// main.c
+
+mount(&quot;proc&quot;, &quot;/proc&quot;, &quot;proc&quot;, 0, &quot;&quot;);
+</code></pre>
+<p>the processes information would be automatically loaded into <code>/proc</code>!</p>
+<p>But, we have to mount it under the new filesystem, so <code>mount</code> should place after we <code>chroot</code> and <code>chdir</code>.</p>
+<pre><code class="language-c">// main.c
+
+// mount &quot;./rootfs&quot; as filesystem root
+if (chroot(&quot;rootfs&quot;) &lt; 0)
+    ERR(&quot;chroot failed!&quot;);
+
+// change directory to &quot;/&quot;
+if (chdir(&quot;/&quot;) &lt; 0)
+    ERR(&quot;chdir failed!\n&quot;);
+    
+// mount processes to &quot;/proc&quot;
+if (mount(&quot;proc&quot;, &quot;/proc&quot;, &quot;proc&quot;, 0, &quot;&quot;) &lt; 0)
+    ERR(&quot;mount failed!\n&quot;);
+</code></pre>
+<p>At this point, you can copy <code>/bin/ps</code> and its dependencies into <code>rootfs</code>'s corresponding directory.</p>
+<p>Let's try:</p>
+<pre><code class="language-bash">$ ./mini-container /bin/bash
+bash-5.2$ ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+65534          1  0.0  0.0   3924  3112 ?        S    03:25   0:00 /bin/bash
+65534          2  0.0  0.0   8044  3776 ?        R+   03:25   0:00 ps aux
+</code></pre>
+<p>Now we have a clear process view. We have an initial process <code>/bin/bash</code> with PID 1, and the <code>ps</code> we run with PID 2.</p>
+<h3>User Namespace</h3>
+<p>Let's first copy all the utilities we need to verify the namespaces first. We need <code>hostname</code> for UTS namespace, <code>ip</code> for network namespace, <code>ipcs</code> / <code>ipcmk</code> / <code>ipcrm</code> for IPC namespace, and <code>id</code> for user namespace.</p>
+<p>Now we have a filesystem tree like this. <strong>Just for reference, things are different on various distros and architecture</strong>:</p>
+<pre><code>rootfs
+├── bin
+│   ├── bash
+│   ├── hostname
+│   ├── id
+│   ├── ip
+│   ├── ipcmk
+│   ├── ipcrm
+│   ├── ipcs
+│   ├── ls
+│   └── ps
+├── lib
+│   ├── aarch64-linux-gnu
+│   │   ├── libbpf.so.1
+│   │   ├── libbsd.so.0
+│   │   ├── libcap.so.2
+│   │   ├── libc.so.6
+│   │   ├── libelf.so.1
+│   │   ├── libgcrypt.so.20
+│   │   ├── libgpg-error.so.0
+│   │   ├── liblz4.so.1
+│   │   ├── liblzma.so.5
+│   │   ├── libmd.so.0
+│   │   ├── libmnl.so.0
+│   │   ├── libpcre2-8.so.0
+│   │   ├── libproc2.so.0
+│   │   ├── libselinux.so.1
+│   │   ├── libsystemd.so.0
+│   │   ├── libtinfo.so.6
+│   │   ├── libz.so.1
+│   │   └── libzstd.so.1
+│   └── ld-linux-aarch64.so.1
+└── proc
+</code></pre>
+<p>Let's find out whether the namespaces are working.</p>
+<p>First is IPC. Let's add a message to queue outside the container:</p>
+<pre><code class="language-bash">$ ipcmk -Q
+Message queue id: 2
+$ ipcs
+
+------ Message Queues --------
+key        msqid      owner      perms      used-bytes   messages    
+0xcec0c0ac 2          endaytrer  644        0            0           
+
+------ Shared Memory Segments --------
+key        shmid      owner      perms      bytes      nattch     status      
+
+------ Semaphore Arrays --------
+key        semid      owner      perms      nsems
+</code></pre>
+<p>Let's see if we can see the message inside the container:</p>
+<pre><code class="language-bash">bash-5.2$ ipcs
+
+------ Message Queues --------
+key        msqid      owner      perms      used-bytes   messages    
+
+------ Shared Memory Segments --------
+key        shmid      owner      perms      bytes      nattch     status      
+
+------ Semaphore Arrays --------
+key        semid      owner      perms      nsems  
+</code></pre>
+<p>The message disappears! When you quit the container, you can see the message again. That is to say, the IPC namespace is successfully isolated.</p>
+<p>It is simple to see if network namespace is isolated: just use <code>ip link</code>:</p>
+<p>Outside the container:</p>
+<pre><code>$ ip link
+1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: enp0s1: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+    link/ether 72:40:9b:62:9a:b1 brd ff:ff:ff:ff:ff:ff
+</code></pre>
+<p>We can see both loopback interface <code>lo</code> and other NICs <code>enp0s1</code> here, but inside the container:</p>
+<pre><code>bash-5.2$ ip link
+1: lo: &lt;LOOPBACK&gt; mtu 65536 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+</code></pre>
+<p>We can only see the loopback interface <code>lo</code>.</p>
+<p>Next, let's see if user namespace is isolated:</p>
+<p>Outside the container:</p>
+<pre><code>$ id
+uid=1000(endaytrer) gid=1000(endaytrer) groups=1000(endaytrer),27(sudo)
+</code></pre>
+<p>Inside the container:</p>
+<pre><code>bash-5.2$ id  
+uid=65534 gid=65534 groups=65534
+</code></pre>
+<p>We have a different group of <code>uid</code> and <code>gid</code>, and that's what we want to see.</p>
+<p>Finally, the hostname namespace. Let us change the hostname inside the container:</p>
+<pre><code>bash-5.2$ hostname container
+hostname: you must be root to change the host name
+</code></pre>
+<p>Since we have uid <code>65534</code> in the container which is not root (0), we cannot change hostname! We cannot change, so after we create the user namespace, we have to set the user to 0 (root) <strong>in the parent process</strong>.</p>
+<p>In every process we created, we have two <strong>mappings</strong>: <code>uid_map</code> and <code>gid_map</code> that make it possible for a user in the host to be mapped to a different user inside the namespace. They maps a user (or a group) of host to a different user in container. If you map a ordinary user to root in container, you effectively get root privilege in the container.</p>
+<p>Since everything is a file in Linux, the mappings are stored in the process directory: <code>/proc/$pid/uid_map</code> and <code>/proc/$pid/gid_map</code>. Notice that the <code>pid</code> here are the PID <strong>outside the namespace</strong>, so we must use the PID returned by <code>clone</code>: PID returned by <code>getpid</code> inside container will always be 1, since PID is isolated. Here is the way to find the correspondent files:</p>
+<pre><code class="language-c">int pid;
+if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0)
+    ERR(&quot;Clone failed!\n&quot;);
+
+// parent process
+
+// update uid / gid map in child;
+char uid_map_path[MAX_PATH_LEN];
+char gid_map_path[MAX_PATH_LEN];
+snprintf(uid_map_path, MAP_FIXED_NOREPLACE, &quot;/proc/%ld/uid_map&quot;, pid);
+snprintf(gid_map_path, MAP_FIXED_NOREPLACE, &quot;/proc/%ld/gid_map&quot;, pid);
+</code></pre>
+<p>Those files have the same format:</p>
+<pre><code>dst_id_1	src_id_1	size_1
+dst_id_2	src_id_2	size_2
+</code></pre>
+<p>We write destination uid/gid first, then source uid/gid, then the size of mapping range (in this case, 1). Multiple mappings are seperated by new lines; uid/gid and size are separated by other whitespaces.</p>
+<p>You can edit those files in any way you like, here is my approach:</p>
+<pre><code class="language-c">// map.h
+
+#ifndef __MAP_H__
+#define __MAP_H__
+#include &lt;stdlib.h&gt;
+#include &lt;stdint.h&gt;
+
+typedef struct {
+    uid_t dst_id;
+    uid_t src_id;
+    uint32_t size;
+} map_t;
+
+void update_map(map_t mapping[], size_t mapsize, const char *mappath);
+
+#endif
+</code></pre>
+<pre><code class="language-c">// map.c
+
+#include &lt;fcntl.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+
+#include &quot;map.h&quot;
+void update_map(map_t mapping[], size_t mapsize, const char *mappath) {
+    FILE *fs = fopen(mappath, &quot;w&quot;);
+    for (size_t i = 0; i &lt; mapsize; i++) {
+        fprintf(fs, &quot;%ld %ld %ld\n&quot;, mapping[i].dst_id, mapping[i].src_id, mapping[i].size);
+    }
+    fclose(fs);
+}
+</code></pre>
+<pre><code class="language-c">// main.c
+
+map_t uid_map = {
+    .dst_id = 0,
+    .src_id = getuid(),
+    .size = 1
+};
+map_t gid_map = {
+    .dst_id = 0,
+    .src_id = getgid(),
+    .size = 1
+};
+
+
+update_map(&amp;uid_map, 1, uid_map_path);
+update_map(&amp;gid_map, 1, gid_map_path);
+    
+</code></pre>
+<p>I defined a struct to store mapping data, and use <code>getuid()</code>, <code>getgid()</code> to retrieve uid/gid.</p>
+<p>Since we've added a new source file, let's modify the makefile to inclue <code>map.o</code>:</p>
+<pre><code class="language-makefile"># Makefile
+
+OBJS = main.o map.o
+</code></pre>
+<p>Let's try if we can use root privileges now:</p>
+<pre><code>$ ./mini-container /bin/bash
+bash-5.2#
+</code></pre>
+<p>First thing to notice is that the prompting <code>$</code> turns into a <code>#</code>! That indicates we are the root now. Let's try to modify the hostname:</p>
+<pre><code>bash-5.2# hostname
+bar
+bash-5.2# hostname foo
+bash-5.2# hostname
+foo
+</code></pre>
+<p>Let's try if UTC namespace is correctly isolated by the way:</p>
+<pre><code class="language-bash">bash-5.2# hostname
+foo
+bash-5.2# exit
+exit
+$ hostname
+bar
+</code></pre>
+<h3>Set-GID Capability</h3>
+<p>We didn't tried to view UID and GID yet, so let's use <code>id</code> to verify that.:</p>
+<pre><code class="language-bash">$ ./mini-container /bin/bash
+bash-5.2# id
+uid=0 gid=65534 groups=65534
+</code></pre>
+<p>We successfully set UID = 1, but GID is not set! Let's run the container with root:</p>
+<pre><code class="language-bash">$ sudo ./mini-container /bin/bash
+bash-5.2# id
+uid=0 gid=0 groups=0,65534
+</code></pre>
+<p>It works if we run the container with root. But, considering that we have seperated the user namespaces, why would this happen?</p>
+<p>A non-root process can establish a new user namespace and set a mapping in <code>/proc/pid/uid_map</code> that maps its own UID in the parent namespace to any UID in the new namespace. This allows the process to have a sort of &quot;root&quot; inside the namespace. However, the process is only allowed to specify its own UID in this mapping.</p>
+<p>But for GID, a process without the <code>CAP_SETGID</code> capability (like a regular user) cannot write to <code>/proc/pid/gid_map</code>. This is a security precaution, ensuring that a user without appropriate permissions can't change its GID in a way that would allow it to gain access to group-owned resources outside its own namespace. But, if the process in the new user namespace has been given the <code>CAP_SETGID</code> capability (relative to its namespace), it can write to its own <code>/proc/pid/gid_map</code>.</p>
+<p>Linux set up this protection since user namespace isolation are not necessarily coupled with mounting namespace, thus the new user might modify the files owned by other people in the group, which is not intended.</p>
+<p>Granting the executable with <code>CAP_SETGID</code> capability is going to help, but <strong>there might be unintentional security risks in the program, so don't use it in production, or with containers that have programs you don't trust.</strong> Thus, I keep the gid unchanged here.</p>
+<p>(p.s. I've tried to change it, but my filesystem is corrupted :( )</p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Underneath Docker (1): Isolate Everything</a>
+                        &copy; 2023
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

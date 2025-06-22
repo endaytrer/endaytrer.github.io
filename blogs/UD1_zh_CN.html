@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="blog.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css" integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans+SC:wght@100..900&family=Noto+Serif+Display:ital,wght@0,100..900;1,100..900&family=Noto+Serif+SC:wght@200..900&family=Noto+Serif:ital,wght@0,100..900;1,100..900" rel="stylesheet">
+<script defer src="https://kit.fontawesome.com/f2480ecba9.js" crossorigin="anonymous"></script>
+<title>Underneath Docker (1): Isolated Filesystem (中文)</title>
+</head>
+<body>
+    <main class="blog-container">
+        <article id="blog" lang="en-US">
+            <h1>Underneath Docker (1): Isolated Filesystem (中文)</h1>
+            <div class="metadata">
+                <div><i class="fa-regular fa-calendar"></i> <time datetime="2023-08-02T00:00:00+08:00"></time></div>
+                    <a class="license" href="https://creativecommons.org/licenses/by/4.0/">
+                        <i class="fa-brands fa-creative-commons"></i>
+                            <i class="fa-brands fa-creative-commons-by"></i>
+                        CC BY 4.0
+                    </a>
+            </div>
+            <blockquote>
+<p><strong>Prerequisites</strong>: C Programming Language</p>
+</blockquote>
+<p>在 <a href="#UD1_zh_CN,md">Underneath Docker (0)</a> 中, 我们已经成功实现了一个运行其他程序的程序, 但我们还未实现任何的隔离. 这次, 我们将实现所有隔离环境的基础: <strong>隔离文件系统</strong>.</p>
+<h3>Cleanup &amp; Makefile</h3>
+<p>上一遍我们遗留下了一个挺乱的codebase, 让我们把它变得更像一个正式的项目吧.</p>
+<p>首先添加一个<strong>Makefile</strong>, 这样我们就不用一遍一遍地使用<code>gcc -o main main.c</code>了.</p>
+<pre><code class="language-makefile"># Makefile
+CC = gcc
+LD = gcc
+CFLAGS = -g -O0
+
+OBJS = main.o
+TARGET = mini-container
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $^
+
+clean:
+	rm -f $(TARGET) $(OBJS)
+</code></pre>
+<p>这是一个挺标准的C makefile, 但如果你对makefiles不熟悉, 以下会对makefile的原理做一个简单的介绍.</p>
+<p>首先, 我们使用<code>XX = y</code>的语法来定义别名. 在之后所有的<code>$(XX)</code>你只要将其替换为<code>y</code>即可. 我们并没有定义<code>LDFLAGS</code>, 那么将<code>$(LDFLAGS)</code>替换为空即可.</p>
+<p>Makefile剩下的部分称为规则. 规则基本的语法是这样的:</p>
+<pre><code class="language-makefile">target: dependency list
+	commands to build target
+</code></pre>
+<p>这个是什么意思呢?</p>
+<blockquote>
+<p>为了去build <code>target</code>, 我们先要递归地使用规则, 去build <code>dependency list</code>中的每一项. 然后, 执行<code>commands to build target</code>中的所有命令去build <code>target</code>.</p>
+</blockquote>
+<p>介绍了规则之后, 在这个makefile中剩下的两个别名就很好理解了: <code>$@</code>代表build目标<code>target</code>, <code>@^</code>代表依赖列表<code>dependency list</code>.</p>
+<p><code>%</code>在<code>target</code> 和 <code>dependency list</code>中代表<strong>通配符</strong>, 它们在两处匹配相同的字符串.</p>
+<p>我们来模拟一个make规则的执行: <code>$(TARGET): $(OBJS)</code> . 这个规则可解释为:</p>
+<blockquote>
+<p>为了去build <code>mini-container</code>, 我们先要build <code>main.o</code>.</p>
+</blockquote>
+<p>现在, <code>make</code>指令会尝试去build <code>main.o</code>. 虽然我们并没有定义形似<code>main.o: main.c</code>这样的规则, 但是我们有一个通配符规则: <code>%.o: %.c</code>. 这时候, <code>make</code>就会去找通配符同样匹配<code>main</code>的c源代码: <code>main.c</code>. 这样我们就有一条合适的make <code>main.o</code>的规则. 让我们继续把别名展开, 这条规则就可以翻译为:</p>
+<blockquote>
+<p>为了去build <code>main.o</code>, 我们先要build <code>main.c</code>. 然后, 执行 <code>gcc -g -O0 -c -o main.o main.c</code>.</p>
+</blockquote>
+<p>我们已经有<code>main.c</code>文件了, 所以不需要任何规则去build它, 只需要执行<code>gcc -g -O0 -c -o main.o main.c</code>就可以了; 这样我们就有了<code>main.o</code>.</p>
+<p>此后, 我们满足了<code>$(TARGET): $(OBJS)</code>的所有依赖列表, 接下来就可以去build<code>mini-container</code>, 即<code>TARGET</code>了. Makefile中这条规则对应的build命令展开如下:</p>
+<pre><code class="language-bash">gcc -o mini-container main.o
+</code></pre>
+<p>这样, 我们就通过makefile的方式, 自动化了编译连接的过程.</p>
+<p>Makefile一开始的<code>.PHONY</code>的含义是, 其依赖列表中的所有目标并不是真实存在的、需要build的文件, 而仅仅是一个名字. 所以, 我们并不是要build一个叫all或者clean的文件, 我们只是要build所有目标, 或者清除build出来的二进制文件. <code>.PHONY</code>本身也不是一个要build的目标, 甚至这都不是一条规则.</p>
+<p>最后要提的一点是, 使用make指令会默认去make Makefile中第一条规则; 在这里, 这个规则是<code>all: $(TARGET)</code>, 即需要build <code>mini-container</code>.</p>
+<h4>Refactoring</h4>
+<p>在上一章中, 我们使用了很多的错误处理流程: 往stderr中打印错误, 然后返回-1. 我们可以使用宏定义来简化我们的代码.</p>
+<pre><code class="language-c">#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+</code></pre>
+<p>我们用<code>do ... while(0)</code>来包装它, 这样的话中间的内容就可以被当成一句语句, 以被用在没有大括号的if语句之后. 我并没有在while(0)后加入分号, 这样我们就必须在<code>ERR()</code>后加入, 让它更像一个函数调用一些.</p>
+<pre><code class="language-c">if (argc &lt;= 1)
+    ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);    
+</code></pre>
+<p>在我们已经了解到这些原理之后, 这些用于调试的<code>printf</code>已经不再被需要了. 现在, codebase变得更加整洁了.</p>
+<pre><code class="language-c">// main.c
+#define _GNU_SOURCE
+#include &lt;sched.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#define STACK_SIZE 0x100000
+
+#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+
+
+int child(void *arg) {
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1)
+        ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);
+    
+    void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    
+    if (child_stack == MAP_FAILED)
+        ERR(&quot;Mmap failed!\n&quot;);
+    
+    void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+    int clone_flags = SIGCHLD;
+    int pid;
+
+    if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0)
+        ERR(&quot;Clone failed!\n&quot;);
+    
+    // parent process
+    if (wait(NULL) &lt; 0)
+        ERR(&quot;Wait failed!\n&quot;);
+    
+    return 0;
+}
+</code></pre>
+<h3>Isolated Mounting Namespace</h3>
+<p>上次介绍了为达到容器化所需要的六大系统的隔离: <strong>文件系统</strong>、<strong>进程空间</strong>、<strong>用户空间</strong>、<strong>IPC</strong>、<strong>网络栈</strong>、<strong>主机名</strong>. 他们对应的namespace和clone syscall标志位如下:</p>
+<table>
+<thead>
+<tr>
+<th>隔离系统</th>
+<th>namespace</th>
+<th><code>clone</code> 标志位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Filesystem</td>
+<td>挂载视图命名空间 <strong>Mount Namespace</strong></td>
+<td><code>CLONE_NEWNS</code></td>
+</tr>
+<tr>
+<td>Process</td>
+<td>进程ID命名空间  <strong>PID Namespace</strong></td>
+<td><code>CLONE_NEWPID</code></td>
+</tr>
+<tr>
+<td>User</td>
+<td>用户组命名空间 <strong>User Namespace</strong></td>
+<td><code>CLONE_NEWUSER</code></td>
+</tr>
+<tr>
+<td>IPC</td>
+<td>进程间通讯命名空间 <strong>IPC Namespace</strong></td>
+<td><code>CLONE_NEWIPC</code></td>
+</tr>
+<tr>
+<td>Network</td>
+<td>网络栈命名空间 <strong>Network Namespace</strong></td>
+<td><code>CLONE_NEWNET</code></td>
+</tr>
+<tr>
+<td>Hostname</td>
+<td>UTS命名空间 <strong>UTS Namespace</strong></td>
+<td><code>CLONE_NEWUTS</code></td>
+</tr>
+</tbody>
+</table>
+<p>Let's first add a new mount namespace to <code>clone</code> call:</p>
+<p>首先, 我们在clone中加入<code>CLONE_NEWNS</code>标志位:</p>
+<pre><code class="language-c">// main.c
+int clone_flags = CLONE_NEWNS | SIGCHLD;
+int pid = clone(child, stack_top, clone_flags, (void *)(argv + 1));
+</code></pre>
+<p>由于Linux创建namespaces需要root权限, 接下来运行这个程序我们都需要使用sudo.</p>
+<pre><code class="language-bash">$ make
+gcc -g -O0 -c -o main.o main.c
+gcc  -o mini-container main.o
+$ sudo ./mini-container /bin/ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  0.2 178136 11576 ?        Ss   Aug11   0:07 /sbin/init
+root           2  0.0  0.0      0     0 ?        S    Aug11   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_gp]
+root           4  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [rcu_par_gp]
+root           5  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [slub_flushwq]
+root           6  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [netns]
+root          10  0.0  0.0      0     0 ?        I&lt;   Aug11   0:00 [mm_percpu_wq]
+...
+root       81780  0.0  0.1  10728  4216 pts/2    S+   07:50   0:00 sudo ./mini-container /bin/ps aux
+root       81781  0.0  0.0  10728   484 pts/3    Ss   07:50   0:00 sudo ./mini-container /bin/ps aux
+root       81782  0.0  0.0   3084   752 pts/3    S+   07:50   0:00 ./mini-container /bin/ps aux
+root       81783  0.0  0.1  11268  4448 pts/3    R+   07:50   0:00 /bin/ps aux
+</code></pre>
+<p>我们已经设置了新的挂载视图命名空间, 但我们并没有改变任何文件系统内的东西. 让我们使用<code>chroot</code>, 将其文件系统挂载点变为我们新建的<code>./rootfs</code>文件目录. 我们还需要做的一步是, 使用<code>chdir</code>将工作目录改为<code>/</code>, 否则我们目前的工作目录在新的文件系统中不会存在.</p>
+<pre><code class="language-shell">$ mkdir rootfs
+</code></pre>
+<pre><code class="language-c">// main.c
+int child(void *arg) {
+    // mount &quot;./rootfs&quot; as filesystem root
+    if (chroot(&quot;rootfs&quot;) &lt; 0)
+        ERR(&quot;chroot failed!&quot;);
+
+    // change directory to &quot;/&quot;
+    if (chdir(&quot;/&quot;) &lt; 0)
+        ERR(&quot;chdir failed!&quot;);
+        
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+</code></pre>
+<p>让我们尝试一下重新执行:</p>
+<pre><code class="language-bash">$ sudo ./mini-container /bin/ps aux
+Exec failed!
+</code></pre>
+<p>切换文件系统后, 我们无法调用<code>exec</code>了! 原因是, 目前我们的文件系统根是一个空目录, 并没有我们要执行的<code>/bin/ps</code>. 为了让我们的工作简单些, 我们之后会使用<code>/bin/bash</code> 和 <code>/bin/ls</code> 而不是<code>/bin/ps</code>. 既然这样, 我们需要将这些可执行以及其依赖共享库放入新的文件系统根目录中.</p>
+<pre><code class="language-bash">$ mkdir -p rootfs/bin
+$ sudo cp /bin/bash /bin/ls rootfs/bin/
+</code></pre>
+<p>为了找到所依赖的共享库, 可以使用<code>ldd</code>指令, 参数为可执行文件:</p>
+<pre><code class="language-bash">$ ldd rootfs/bin/bash
+        linux-vdso.so.1 (0x0000ffff9a665000)
+        libtinfo.so.6 =&gt; /lib/aarch64-linux-gnu/libtinfo.so.6 (0x0000ffff9a460000)
+        libc.so.6 =&gt; /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffff9a2b0000)
+        /lib/ld-linux-aarch64.so.1 (0x0000ffff9a628000)
+</code></pre>
+<p>第一行所展示的<code>linux-vdso.so.1</code>是一个虚拟的共享库, 并不再实际的文件系统中存在, 我们只需要处理其他的共享库即可.</p>
+<p>值得注意的是, 在不同的Linux发行版和体系结构下, 这些依赖项处于不同位置. 你需要根据你的架构和发行版情况自行拷贝到<code>rootfs/</code>目录下的对应位置.</p>
+<pre><code class="language-bash">$ mkdir -p rootfs/bin rootfs/lib rootfs/lib/aarch64-linux-gnu
+$ sudo cp /lib/aarch64-linux-gnu/libtinfo.so.6 \
+	/lib/aarch64-linux-gnu/libc.so.6 \
+	/lib/aarch64-linux-gnu/libselinux.so.1 \
+	/lib/aarch64-linux-gnu/libpcre2-8.so.0 \
+	rootfs/lib/aarch64-linux-gnu/
+$ sudo cp /lib/ld-linux-aarch64.so.1 rootfs/lib/
+</code></pre>
+<p>现在, bash和ls可以运行了!</p>
+<pre><code class="language-bash">$ make
+gcc -g -O0 -c -o main.o main.c
+gcc  -o mini-container main.o
+$ sudo ./mini-container /bin/bash
+bash-5.2# ls
+bin  lib
+bash-5.2# ls -alh
+total 16K
+drwxr-xr-x 4 1000 1000 4.0K Aug 14 13:00 .
+drwxr-xr-x 4 1000 1000 4.0K Aug 14 13:00 ..
+drwxr-xr-x 2 1000 1000 4.0K Aug 14 13:01 bin
+drwxr-xr-x 3 1000 1000 4.0K Aug 14 13:07 lib
+bash-5.2# 
+</code></pre>
+<p>以下是文件系统隔离的完整代码:</p>
+<pre><code class="language-c">// main.c
+#define _GNU_SOURCE
+#include &lt;sched.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/wait.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#define STACK_SIZE 0x100000
+
+#define ERR(msg) \
+do { \
+    fprintf(stderr, msg);\
+    return -1; \
+} while (0)
+
+
+int child(void *arg) {
+    // mount &quot;./rootfs&quot; as filesystem root
+    if (chroot(&quot;rootfs&quot;) &lt; 0)
+        ERR(&quot;chroot failed!&quot;);
+
+    // change directory to &quot;/&quot;
+    if (chdir(&quot;/&quot;) &lt; 0)
+        ERR(&quot;chdir failed!&quot;);
+
+    char **argv = (char **)arg;
+    execv(argv[0], argv);
+    ERR(&quot;Exec failed!\n&quot;);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc &lt;= 1)
+        ERR(&quot;Usage: mini-container PROGRAM [args]\n&quot;);
+    
+    void *child_stack = mmap(NULL, STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+    
+    if (child_stack == MAP_FAILED)
+        ERR(&quot;Mmap failed!\n&quot;);
+    
+    void *stack_top = (void *)((uint64_t)child_stack + STACK_SIZE);
+    // create new mount namespace
+    int clone_flags = CLONE_NEWNS | SIGCHLD;
+    int pid;
+
+    if ((pid = clone(child, stack_top, clone_flags, (void *)(argv + 1))) &lt; 0) {
+        printf(&quot;%d\n&quot;, pid);
+        ERR(&quot;Clone failed!\n&quot;);
+    }
+    
+    // parent process
+    if (wait(NULL) &lt; 0)
+        ERR(&quot;Wait failed!\n&quot;);
+    
+    return 0;
+}
+</code></pre>
+<p>现在我们有了一个隔离的文件系统. 下一章中, 我们会进一步隔离所有的namespaces!</p>
+
+            <br />
+            <div class="copyright">
+                    <a href="#">Underneath Docker (1): Isolated Filesystem (中文)</a>
+                        &copy; 2023
+                    by Daniel Gu
+                        is licensed under
+                    <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0
+                        <i class="fa-brands fa-creative-commons-by"></i>
+                    </a>
+                    .
+            </div>
+        </div>
+
+        <div id="image-viewer">
+            <span class="close">&times;</span>
+            <img class="modal-content" id="full-image">
+            <button class="img-switch" id="prev-button" aria-label="Previous image">&#8592;</button>
+            <button class="img-switch" id="next-button" aria-label="Next image">&#8594;</button>
+            <div class="image-text">
+                <div id="image-progress"></div>
+                <div id="image-caption"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
