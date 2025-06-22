@@ -66,13 +66,21 @@ echo "✅ Pre-flight checks passed."
 echo "🔄 Pushing latest commits on '$SOURCE_BRANCH' to remote..."
 git push origin $SOURCE_BRANCH
 
+# --- Step 2: Create worktree ---
+echo "🔒 Creating dist worktree..."
+git worktree add $BUILD_FOLDER deployment
+mv $BUILD_FOLDER/.git dist_git
+
 # --- Step 2: Build the Project ---
-echo "📦 Running the build command ('npm run build')..."
+echo "📦 Running the build commands..."
+npm install
 npm run build
 (cd mkcontent && cargo run --release)
 
+mv dist_git $BUILD_FOLDER/.git
+
 # Check if the build folder exists after the build command.
-if [ ! -d "$BUILD_FOLDER" ]; then
+if [ ! -f "$BUILD_FOLDER/index.html" ] || [ ! -f "$BUILD_FOLDER/api/blog-manifest.json"]; then
   echo "❌ Error: Build folder '$BUILD_FOLDER' not found. The 'npm run build' process may have failed."
   exit 1
 fi
@@ -83,35 +91,16 @@ echo "🚚 Deploying '$BUILD_FOLDER' to the '$DEPLOY_BRANCH' branch..."
 # Navigate into the build output directory.
 cd $BUILD_FOLDER
 
-# Initialize a new temporary Git repository inside the build folder.
-# The output is redirected to /dev/null to keep the console clean.
-git init > /dev/null
-
-
 # Create the deployment commit.
 git add .
 # The output is redirected to /dev/null to keep the console clean.
 git commit -m "Deploy: $(date +"%Y-%m-%d %H:%M:%S")" > /dev/null
-
-# Get the remote repository URL from the parent repository.
-REMOTE_URL=$(cd .. && git config --get remote.origin.url)
-if [ -z "$REMOTE_URL" ]; then
-  echo "❌ Error: Could not find remote 'origin' URL in the parent repository."
-  # Clean up before exiting
-  cd ..
-  rm -rf $BUILD_FOLDER
-  exit 1
-fi
-
-# Force push from the temporary repo's `main` branch to the remote `deployment` branch.
-# This creates the deployment branch if it doesn't exist and overwrites its history.
-# The output is redirected to hide noisy git output about the push.
-git push --force "$REMOTE_URL" main:$DEPLOY_BRANCH > /dev/null 2>&1
+git push
 
 # --- Step 4: Clean Up ---
 # Navigate back to the project root and remove the build folder.
 cd ..
-rm -rf $BUILD_FOLDER
+git worktree remove $BUILD_FOLDER
 
 # --- All Done! ---
 echo "🎉 Deployment successful!"
