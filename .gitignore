@@ -14,3 +14,6 @@ static/api
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Contents
+content
