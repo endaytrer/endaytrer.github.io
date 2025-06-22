@@ -12,7 +12,7 @@ function BlogEntry({id, blog}: {id: string, blog: BlogInfo}) {
                 <div className="flex items-center gap-2"><i className="fa-lock fa-solid text-sm text-teal-400 dark:text-teal-800"></i> <p>The blog is locked.</p></div> :
                 blog.preview
             }</div>
-            {blog.tags.length > 0 && <div className="flex flex-wrap items-center gap-2 text-sm mb-2">{blog.tags.map((tag) => <a href={`/blogs?tags=${tag}`} key={tag}><Tag selected={false} onClick={undefined}>{tag}</Tag></a>)}</div>}
+            {blog.tags.length > 0 && <div className="flex flex-wrap items-center gap-2 text-sm mb-2">{blog.tags.map((tag) => <a href={`/blogs.html?tags=${tag}`} key={tag}><Tag selected={false} onClick={undefined}>{tag}</Tag></a>)}</div>}
         </div>
         <div>
         <p className="text-teal-500 text-lg font-normal">{blog.created.toLocaleDateString()}</p>
@@ -108,7 +108,7 @@ export default function BlogList({
     return <div>
         {paging && <div>
             <h3 className="text-lg font-bold justify-between text-teal-900 dark:text-lime-50">Filtering</h3>
-            <div className="flex gap-2 m-4">
+            {Object.keys(blogManifest.tags).length > 0 && <div className="flex gap-2 m-4">
 
                 <label htmlFor="">Tags:</label>
                 <div className="flex flex-wrap gap-2">
@@ -127,7 +127,7 @@ export default function BlogList({
                         if (setFilter) setFilter(ans);
                     }}>{tag}</Tag>)}
                 </div>
-            </div>
+            </div>}
         </div>}
         {
             displayBlogs.map(([id, info]) => <BlogEntry id={id} blog={info} key={id}/>)}

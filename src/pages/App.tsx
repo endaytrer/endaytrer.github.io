@@ -25,7 +25,7 @@ const navLinks = [
   },
   {
     name: "All Blogs",
-    link: "/blogs",
+    link: "/blogs.html",
   }
 ]
 
