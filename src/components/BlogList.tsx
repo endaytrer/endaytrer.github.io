@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BlogInfo, BlogManifest } from '../api/blog';
+import Tag from './Tag';
 
 function BlogEntry({id, blog}: {id: string, blog: BlogInfo}) {
     const linkName = id.split(".")[0] + ".html";
@@ -11,7 +12,7 @@ function BlogEntry({id, blog}: {id: string, blog: BlogInfo}) {
                 <div className="flex items-center gap-2"><i className="fa-lock fa-solid text-sm text-teal-400 dark:text-teal-800"></i> <p>The blog is locked.</p></div> :
                 blog.preview
             }</div>
-            {blog.tags.length > 0 && <div className="flex flex-wrap items-center gap-2 text-sm mb-2">{blog.tags.map((tag) => <a href={`/blogs?tags=${tag}`} key={tag} className="font-sans capitalize rounded-sm bg-teal-300 dark:bg-teal-900 text-teal-600 py-0 px-1"><b>#</b> {tag}</a>)}</div>}
+            {blog.tags.length > 0 && <div className="flex flex-wrap items-center gap-2 text-sm mb-2">{blog.tags.map((tag) => <a href={`/blogs?tags=${tag}`} key={tag}><Tag selected={false} onClick={undefined}>{tag}</Tag></a>)}</div>}
         </div>
         <div>
         <p className="text-teal-500 text-lg font-normal">{blog.created.toLocaleDateString()}</p>
@@ -27,6 +28,12 @@ export interface Filter {
     license: (string | null)[],
     /// Only support union of tags
     tags: string[],
+}
+function isFilterEmpty(obj: Filter | undefined): boolean {
+    if (obj === undefined) {
+        return true;
+    }
+    return obj.password === undefined && obj.language.length === 0 && obj.license.length === 0 && obj.tags.length === 0;
 }
 export default function BlogList({
     limit,
@@ -68,11 +75,7 @@ export default function BlogList({
     }, []);
     const numPages = Math.ceil(Object.entries(blogManifest.blogs).length / limit);
     const realPage = Math.max(0, Math.min(page, numPages - 1));
-
-    const pagingButtonStyle = "cursor-pointer px-1"
-    
-    return <div>
-        {Object.entries(blogManifest.blogs)
+    const displayBlogs = Object.entries(blogManifest.blogs)
             .filter(([_, blog]) => {
                 if (filter === undefined) {
                     return true;
@@ -98,8 +101,37 @@ export default function BlogList({
                 }
                 return delta;
             })
-            .slice(realPage * limit, (realPage + 1) * limit)
-            .map(([id, info]) => <BlogEntry id={id} blog={info} key={id}/>)}
+            .slice(realPage * limit, (realPage + 1) * limit);
+
+    const pagingButtonStyle = "cursor-pointer px-1"
+    
+    return <div>
+        {paging && <div>
+            <h3 className="text-lg font-bold justify-between text-teal-900 dark:text-lime-50">Filtering</h3>
+            <div className="flex gap-2 m-4">
+
+                <label htmlFor="">Tags:</label>
+                <div className="flex flex-wrap gap-2">
+                    {Object.keys(blogManifest.tags).map((tag) => <Tag key={tag} selected={(filter !== undefined) && filter.tags.includes(tag)} onClick={() => {
+                        const ans: Filter = filter === undefined ? {
+                            password: undefined,
+                            language: [],
+                            license: [],
+                            tags: [],
+                        } : filter;
+                        if (ans.tags.includes(tag)) {
+                            ans.tags = ans.tags.filter((v) => v != tag);
+                        } else {
+                            ans.tags.push(tag);
+                        }
+                        if (setFilter) setFilter(ans);
+                    }}>{tag}</Tag>)}
+                </div>
+            </div>
+        </div>}
+        {
+            displayBlogs.map(([id, info]) => <BlogEntry id={id} blog={info} key={id}/>)}
+        {Object.entries(blogManifest.blogs).length === 0 && <div className=''>No blog {isFilterEmpty(filter) ? "is available" : "matches the condition"}.</div>}
         {paging && <div className="mt-5 font-serif w-full text-teal-900 dark:text-lime-50 flex flex-wrap items-center justify-end gap-6">
             <div>Blogs per page:
                 <select className="bg-transparent cursor-pointer mx-2 px-2 py-1" value={limit} onChange={(e) => {

@@ -56,7 +56,7 @@ export default function BlogListPage({searchParams}: {searchParams: URLSearchPar
     try {
         const tmp_str = searchParams.get("language");
         if (tmp_str !== null) {
-            const tmp = tmp_str.split(",")
+            const tmp = tmp_str.split(" ")
             filter.language = tmp;
         }
     } catch {}
@@ -64,15 +64,15 @@ export default function BlogListPage({searchParams}: {searchParams: URLSearchPar
     try {
         const tmp_str = searchParams.get("license");
         if (tmp_str !== null) {
-            const tmp = tmp_str.split(",").map((val) => val === "null" ? null : val)
+            const tmp = tmp_str.split(" ").map((val) => val === "null" ? null : val)
             filter.license = tmp;
         }
     } catch {}
 
     try {
-        const tmp_str = searchParams.get("tags");
+        const tmp_str = searchParams.get("tags")
         if (tmp_str !== null) {
-            const tmp = tmp_str.split(",")
+            const tmp = tmp_str.split(" ")
             filter.tags = tmp;
         }
     } catch {}
@@ -101,17 +101,17 @@ export default function BlogListPage({searchParams}: {searchParams: URLSearchPar
                 if (filter.language.length === 0) {
                     searchParams.delete("language")
                 } else {
-                    searchParams.set("language", filter.language.join(","));
+                    searchParams.set("language", filter.language.join(" "));
                 }
                 if (filter.license.length === 0) {
                     searchParams.delete("license");
                 } else {
-                    searchParams.set("license", filter.license.join(","))
+                    searchParams.set("license", filter.license.join(" "))
                 }
                 if (filter.tags.length === 0) {
                     searchParams.delete("tags");
                 } else {
-                    searchParams.set("tags", filter.tags.join(","));
+                    searchParams.set("tags", filter.tags.join(" "));
                 }
                 window.location.search = searchParams.toString();
             }}
