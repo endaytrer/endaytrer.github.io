@@ -3,6 +3,7 @@ title = "Canton, Pt. 2"
 created = 2024-04-30
 lang = "zh-Hans"
 license = "CC BY-SA 4.0"
+tags = ["travel", "photography"]
 ---
 > 下一站：体育西路
 > 
