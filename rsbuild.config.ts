@@ -11,4 +11,10 @@ export default defineConfig({
     title: `${blogConfig.realName}'s Blog`,
     template: "./static/index.html"
   },
+  source: {
+    entry: {
+      index: "./src/index.tsx",
+      blogs: "./src/blogs.tsx",
+    }
+  }
 });

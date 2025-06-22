@@ -1,12 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './pages/App';
 import "./index.css";
+import BlogList from './pages/AllBlogs';
 import blogConfig from '../blog.config';
 
 const rootEl = document.getElementById('root');
 if (rootEl) {
-  const rootElement = <App />;
+
+  const rootElement = <BlogList searchParams={new URLSearchParams(window.location.search)} />;
   const root = ReactDOM.createRoot(rootEl);
   root.render(
     <React.StrictMode>
