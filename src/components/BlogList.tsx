@@ -73,35 +73,35 @@ export default function BlogList({
                 setBlogManifest(data);
             });
     }, []);
-    const numPages = Math.ceil(Object.entries(blogManifest.blogs).length / limit);
-    const realPage = Math.max(0, Math.min(page, numPages - 1));
-    const displayBlogs = Object.entries(blogManifest.blogs)
-            .filter(([_, blog]) => {
-                if (filter === undefined) {
-                    return true;
-                }
-                const {password, language, license, tags} = filter;
-                if (password !== undefined && blog.password !== password) { return false; }
-                if (language.length > 0 && !language.includes(blog.language)) { return false; }
-                if (license.length > 0 && !license.includes(blog.license)) { return false; }
-                if (tags.length > 0 && !blog.tags.some((tag) => tags.includes(tag))) { return false; }
+    const filteredBlogs = Object.entries(blogManifest.blogs)
+        .filter(([_, blog]) => {
+            if (filter === undefined) {
                 return true;
-            })
-            .sort(([_a, a], [_b, b]) => {
-                let delta = 0;
-                if (sort === "created") {
-                    delta = a.created.getTime() - b.created.getTime();
-                } else if (sort === "title") {
-                    delta = a.title.localeCompare(b.title)
-                } else {
-                    throw "Sorting not coverred"
-                }
-                if (descent) {
-                    delta = -delta;
-                }
-                return delta;
-            })
-            .slice(realPage * limit, (realPage + 1) * limit);
+            }
+            const {password, language, license, tags} = filter;
+            if (password !== undefined && blog.password !== password) { return false; }
+            if (language.length > 0 && !language.includes(blog.language)) { return false; }
+            if (license.length > 0 && !license.includes(blog.license)) { return false; }
+            if (tags.length > 0 && !blog.tags.some((tag) => tags.includes(tag))) { return false; }
+            return true;
+        })
+        .sort(([_a, a], [_b, b]) => {
+            let delta = 0;
+            if (sort === "created") {
+                delta = a.created.getTime() - b.created.getTime();
+            } else if (sort === "title") {
+                delta = a.title.localeCompare(b.title)
+            } else {
+                throw "Sorting not coverred"
+            }
+            if (descent) {
+                delta = -delta;
+            }
+            return delta;
+        });
+    const numPages = Math.ceil(filteredBlogs.length / limit);
+    const realPage = Math.max(0, Math.min(page, numPages - 1));
+    const displayBlogs = filteredBlogs.slice(realPage * limit, (realPage + 1) * limit);
 
     const pagingButtonStyle = "cursor-pointer px-1"
     
