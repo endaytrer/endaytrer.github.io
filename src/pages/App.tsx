@@ -21,7 +21,7 @@ const navLinks = [
   },
   {
     name: "Academic",
-    link: "https://www.danielgu.org",
+    link: "https://danielgu.org",
   },
   {
     name: "All Blogs",
