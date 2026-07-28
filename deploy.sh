@@ -91,6 +91,9 @@ echo "🚚 Deploying '$BUILD_FOLDER' to the '$DEPLOY_BRANCH' branch..."
 # Navigate into the build output directory.
 cd $BUILD_FOLDER
 
+# Preserve the GitHub Pages custom domain (rsbuild cleans dist and wipes it).
+echo "blog.danielgu.org" > CNAME
+
 # Create the deployment commit.
 git add .
 # The output is redirected to /dev/null to keep the console clean.
